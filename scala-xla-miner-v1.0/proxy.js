@@ -11,19 +11,19 @@ console.log("✅ WebSocket proxy listening on ws://localhost:8080");
 
 // Map of supported pools
 const POOLS = {
-  herominers:      { host: "de.scala.herominers.com", port: 1190 },
-  fairpool:        { host: "xla.fairpool.xyz",        port: 3333 },
-  poolmine:        { host: "xla.poolmine.tk",         port: 4444 },
-  scalaproject3333:{ host: "mine.scalaproject.io",    port: 3333 }, // Low-end
-  scalaproject5555:{ host: "mine.scalaproject.io",    port: 5555 }, // Mid-range
-  scalaproject7777:{ host: "mine.scalaproject.io",    port: 7777 }, // High-end
-  scalaproject8888:{ host: "mine.scalaproject.io",    port: 8888 }  // Solo
+  herominers:        { host: "xla.herominers.com", port: 1111 },
+  fairpool:          { host: "xla.fairpool.xyz",   port: 3333 },
+  poolmine:          { host: "xla.poolmine.tk",    port: 4444 },
+  scalaproject_low:  { host: "mine.scalaproject.io", port: 3333 },
+  scalaproject_mid:  { host: "mine.scalaproject.io", port: 5555 },
+  scalaproject_high: { host: "mine.scalaproject.io", port: 7777 },
+  scalaproject_solo: { host: "mine.scalaproject.io", port: 8888 }
 };
 
 wss.on("connection", (ws, req) => {
   console.log("🌐 Browser miner connected");
 
-  // Pick pool from query param ?pool=herominers
+  // Pick pool from query param ?pool=scalaproject_low
   const params = url.parse(req.url, true).query;
   const poolKey = params.pool || "herominers";
   const pool = POOLS[poolKey];
@@ -43,8 +43,10 @@ wss.on("connection", (ws, req) => {
 
   // TCP -> WS
   tcpSocket.on("data", (data) => {
+    const str = data.toString("utf8").trim();
+    console.log("⬅️ Pool -> Proxy:", str);
     try {
-      ws.send(data.toString("utf8"));
+      if (ws.readyState === WebSocket.OPEN) ws.send(str);
     } catch (e) {
       console.error("❌ Failed to forward TCP -> WS:", e.message);
     }
@@ -52,9 +54,7 @@ wss.on("connection", (ws, req) => {
 
   tcpSocket.on("close", () => {
     console.log("⚠️ TCP pool connection closed");
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.close();
-    }
+    if (ws.readyState === WebSocket.OPEN) ws.close();
   });
 
   tcpSocket.on("error", (err) => {
@@ -65,10 +65,11 @@ wss.on("connection", (ws, req) => {
     }
   });
 
-  // WS -> TCP
+  // WS -> TCP (wallet+login JSON must pass through cleanly)
   ws.on("message", (msg) => {
+    console.log("➡️ Miner -> Proxy:", msg.toString());
     if (tcpSocket.writable) {
-      tcpSocket.write(msg + "\n");
+      tcpSocket.write(msg.toString().trim() + "\n");
     }
   });
 
