@@ -1,5 +1,16 @@
 {
   "dependencies": {
     "ws": "^8.18.3"
-  }
+  },
+  "name": "scala-xla-miner-v1.0",
+  "version": "1.0.0",
+  "description": "A professional browser-based cryptocurrency miner for Scala (XLA) network, inspired by CryptoTab Browser's seamless mining experience. This implementation uses WebAssembly for high-performance mining with the Panthera algorithm, optimized for CPU and mobile devices.",
+  "main": "proxy.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
 }

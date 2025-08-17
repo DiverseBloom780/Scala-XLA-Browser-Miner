@@ -99,10 +99,10 @@
           <div class="input-group">
             <label for="poolSelect">Mining Pool</label>
             <select id="poolSelect">
-              <option value="">Select a Scala mining pool...</option>
-              <option value="herominers">HeroMiners XLA (0.9% fee)</option>
-              <option value="fairpool">FairPool XLA (0.6% fee)</option>
-              <option value="poolmine">PoolMine XLA (1.0% fee)</option>
+              <option value="scalaproject_low">Scala Official Pool (Low Diff)</option>
+<option value="scalaproject_mid">Scala Official Pool (Mid Diff)</option>
+<option value="scalaproject_high">Scala Official Pool (High Diff)</option>
+<option value="scalaproject_solo">Scala Official Pool (Solo)</option>
             </select>
           </div>
           <button class="btn btn-primary" id="setupBtn" onclick="setupMining()">Setup Mining</button>
@@ -242,7 +242,7 @@
     });
   </script>
 
-  <!-- Load miner logic -->
-  <script src="scala-miner.js" async></script>
+ <!-- Load miner logic -->
+<script src="scala-miner.js" async></script>
 </body>
 </html>
