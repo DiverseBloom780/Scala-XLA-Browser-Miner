@@ -163,7 +163,7 @@ class CryptoTabStyleMiner {
  * ✅ Hook for HTML buttons
  ****************************************************/
 function setupMining() {
-    const wallet = document.getElementById("walletInput").value.trim();
+    const wallet = document.getElementById("walletAddress").value.trim();
     const poolKey = document.getElementById("poolSelect").value || "herominers";
 
     if (!wallet) {
