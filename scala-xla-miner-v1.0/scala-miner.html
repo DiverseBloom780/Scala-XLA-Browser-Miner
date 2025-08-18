@@ -421,7 +421,10 @@
   </div>
 
   <!-- ✅ CRITICAL: Script Load Order - Must be at bottom of body -->
-  <script src="scala-miner-complete.js"></script>
+  <script src="scala-miner.wasm.js"></script>       <!-- WASM loader --> 
+  <script src="scala-miner.js"></script>            <!-- miner core logic -->
+  <script src="scala-pool-connector.js"></script>   <!-- pool communication -->
+  <script src="ui.js"></script>                     <!-- UI helpers -->
 
   <!-- ✅ UI Event Binding -->
   <script>
@@ -433,11 +436,11 @@
           const pool = document.getElementById('poolSelect').value;
           
           if (!wallet) {
-            addLog("❌ Please enter a wallet address", "error");
+            addLog("⚠ Please enter a wallet address", "error");
             return;
           }
           if (!pool) {
-            addLog("❌ Please select a mining pool", "error");
+            addLog("⚠ Please select a mining pool", "error");
             return;
           }
           
