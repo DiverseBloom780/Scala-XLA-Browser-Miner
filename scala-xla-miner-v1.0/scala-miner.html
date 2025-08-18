@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CryptoTab-Style Scala XLA Miner</title>
+  <style>
+    :root { 
+      --bg:#0f1220; 
+      --panel:#111633; 
+      --border:#273057; 
+      --muted:#9aa6df; 
+      --text:#e8eefc; 
+      --accent:#1f3bb3; 
+      --accent2:#2e4ae0; 
+    }
+    * { box-sizing:border-box; }
+    
+    body { 
+      font-family: system-ui, Arial, sans-serif; 
+      margin:0; 
+      background:var(--bg); 
+      color:var(--text); 
+    }
+    
+    .cryptotab-header { 
+      position:sticky; 
+      top:0; 
+      background:#151939; 
+      border-bottom:1px solid var(--border); 
+      z-index:10; 
+    }
+    
+    .header-content { 
+      max-width:1100px; 
+      margin:0 auto; 
+      padding:14px 16px; 
+      display:flex; 
+      justify-content:space-between; 
+      align-items:center; 
+    }
+    
+    .logo { 
+      font-weight:800; 
+      letter-spacing:.2px; 
+      font-size:18px; 
+    }
+    
+    .mining-toggle { 
+      display:flex; 
+      gap:12px; 
+      align-items:center; 
+      opacity:.9; 
+      transition:opacity .2s; 
+    }
+    
+    .toggle-switch { 
+      width:54px; 
+      height:28px; 
+      background:#2a3568; 
+      border-radius:999px; 
+      padding:3px; 
+      box-shadow: inset 0 0 0 1px #31407a; 
+      cursor:pointer; 
+    }
+    
+    .toggle-switch .toggle-slider { 
+      width:22px; 
+      height:22px; 
+      background:#a7b5f5; 
+      border-radius:999px; 
+      transform: translateX(0); 
+      transition: transform .2s, background .2s; 
+    }
+    
+    .toggle-switch.active { 
+      background:#1d7c3a; 
+      box-shadow: inset 0 0 0 1px #209848; 
+    }
+    
+    .toggle-switch.active .toggle-slider { 
+      transform: translateX(26px); 
+      background:#eafff0; 
+    }
+
+    .container { 
+      max-width:1100px; 
+      margin:24px auto; 
+      padding:0 16px; 
+    }
+    
+    .feature-highlight { 
+      background:var(--panel); 
+      border:1px solid var(--border); 
+      border-radius:12px; 
+      padding:16px; 
+      margin-bottom:16px; 
+    }
+    
+    .mining-dashboard { 
+      display:grid; 
+      grid-template-columns:1.15fr .85fr; 
+      gap:16px; 
+    }
+    
+    @media (max-width:1000px){ 
+      .mining-dashboard { grid-template-columns:1fr; } 
+    }
+    
+    .dashboard-card { 
+      background:var(--panel); 
+      border:1px solid var(--border); 
+      border-radius:12px; 
+      padding:16px; 
+    }
+    
+    .card-title { 
+      font-weight:800; 
+      margin-bottom:12px; 
+      display:flex; 
+      align-items:center; 
+      gap:8px; 
+    }
+    
+    .earnings-display { 
+      display:flex; 
+      align-items:baseline; 
+      gap:12px; 
+      margin-bottom:8px; 
+    }
+    
+    .earnings-amount { 
+      font-size:30px; 
+      font-weight:800; 
+    }
+    
+    .mining-status { 
+      display:flex; 
+      align-items:center; 
+      gap:10px; 
+      margin:10px 0; 
+      padding:8px 10px; 
+      border-radius:8px; 
+      border:1px solid var(--border); 
+    }
+    
+    .mining-status .status-indicator { 
+      width:10px; 
+      height:10px; 
+      border-radius:999px; 
+      background:#6a728f; 
+    }
+    
+    .mining-status.active .status-indicator { 
+      background:#1ef074; 
+      box-shadow:0 0 12px #1ef074aa; 
+    }
+    
+    .stats-grid { 
+      display:grid; 
+      grid-template-columns:repeat(4,1fr); 
+      gap:10px; 
+      margin-top:10px; 
+    }
+    
+    @media (max-width:700px){ 
+      .stats-grid { grid-template-columns:repeat(2,1fr); } 
+    }
+    
+    .stat-item { 
+      background:#0f1430; 
+      border:1px solid #25305d; 
+      border-radius:10px; 
+      padding:10px; 
+    }
+    
+    .stat-label { 
+      color:var(--muted); 
+      font-size:12px; 
+      margin-top:4px; 
+    }
+    
+    .stat-value { 
+      font-weight:800; 
+      font-variant-numeric:tabular-nums; 
+    }
+    
+    .wallet-setup .input-group { 
+      display:flex; 
+      flex-direction:column; 
+      gap:6px; 
+      margin-bottom:10px; 
+    }
+    
+    input, select { 
+      background:#0f1430; 
+      color:var(--text); 
+      border:1px solid var(--border); 
+      border-radius:8px; 
+      padding:10px; 
+      width:100%; 
+      outline:none; 
+    }
+    
+    .btn { 
+      padding:10px 14px; 
+      border-radius:8px; 
+      border:1px solid var(--border); 
+      background:#182050; 
+      color:var(--text); 
+      cursor:pointer; 
+      transition: background .2s;
+    }
+    
+    .btn:hover {
+      background:#1e2866;
+    }
+    
+    .btn-primary { 
+      background:var(--accent); 
+      border-color:var(--accent2); 
+    }
+    
+    .btn-primary:hover {
+      background:var(--accent2);
+    }
+    
+    .intensity-control { 
+      margin-top:14px; 
+    }
+    
+    .intensity-slider { 
+      width:100%; 
+    }
+    
+    .intensity-labels { 
+      display:flex; 
+      justify-content:space-between; 
+      font-size:12px; 
+      color:var(--muted); 
+      margin-top:6px; 
+    }
+    
+    .log-container { 
+      height:200px; 
+      overflow:auto; 
+      background:#0e1230; 
+      border:1px solid var(--border); 
+      border-radius:10px; 
+      padding:10px; 
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; 
+    }
+    
+    .log-entry { 
+      font-size:12px; 
+      line-height:1.35; 
+      color:#bfc8f1; 
+      margin-bottom:4px;
+    }
+    
+    .log-entry.success { 
+      color:#a6f7c5; 
+    }
+    
+    .log-entry.error { 
+      color:#ff9aa6; 
+    }
+    
+    .log-entry.warning { 
+      color:#ffe09a; 
+    }
+    
+    .cryptotab-branding { 
+      text-align:center; 
+      color:var(--muted); 
+      opacity:.9; 
+      margin:18px 0; 
+    }
+    
+    .controls { 
+      display:flex; 
+      gap:10px; 
+      margin:18px 0; 
+    }
+    
+    canvas { 
+      width:100%; 
+      height:160px; 
+      display:block; 
+      background:#0b1030; 
+      border:1px solid #222a55; 
+      border-radius:8px; 
+    }
+  </style>
+</head>
+
+<body>
+  <div class="cryptotab-header">
+    <div class="header-content">
+      <div class="logo">CryptoTab-Style Scala Miner</div>
+      <div class="mining-toggle">
+        <span>Background Mining</span>
+        <div class="toggle-switch" id="miningToggle">
+          <div class="toggle-slider"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="feature-highlight">
+      <h4>🚀 CryptoTab-Style Mining Experience</h4>
+      <p>Mine Scala (XLA) in the background. Panthera algorithm + WebAssembly. Uses a local Stratum proxy.</p>
+    </div>
+
+    <div class="mining-dashboard">
+      <div class="dashboard-card">
+        <div class="card-title">💰 Mining Dashboard</div>
+        <div class="earnings-display">
+          <div class="earnings-amount" id="totalEarnings">0.000000</div>
+          <div class="earnings-label">XLA Earned This Session</div>
+        </div>
+        
+        <div class="mining-status inactive" id="miningStatus">
+          <div class="status-indicator"></div>
+          <span>Mining Inactive</span>
+        </div>
+
+        <div style="margin:10px 0 4px; color:#9aa6df">Live Hashrate</div>
+        <canvas id="rateChart" width="800" height="160"></canvas>
+
+        <div class="stats-grid">
+          <div class="stat-item">
+            <div class="stat-value" id="hashRate">0</div>
+            <div class="stat-label">Hash/sec</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="totalHashes">0</div>
+            <div class="stat-label">Total Hashes</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="sharesFound">0</div>
+            <div class="stat-label">Shares Found</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="uptime">00:00:00</div>
+            <div class="stat-label">Session Time</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dashboard-card">
+        <div class="card-title">⚙️ Mining Configuration</div>
+        <div class="wallet-setup">
+          <div class="input-group">
+            <label for="walletAddress">Scala (XLA) Wallet Address</label>
+            <input id="walletAddress" placeholder="Enter your XLA wallet address (≈95 chars)" />
+          </div>
+          <div class="input-group">
+            <label for="poolSelect">Mining Pool</label>
+            <select id="poolSelect">
+              <option value="">Select a Scala mining pool...</option>
+              <option value="scalaproject_low">ScalaProject Low (3333)</option>
+              <option value="scalaproject_mid">ScalaProject Mid (5555)</option>
+              <option value="scalaproject_high">ScalaProject High (7777)</option>
+              <option value="scalaproject_solo">ScalaProject Solo (8888)</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" id="setupBtn">Setup Miner</button>
+        </div>
+
+        <div class="intensity-control">
+          <label>Mining Intensity: <span id="intensityValue">50</span>%</label>
+          <input id="intensitySlider" class="intensity-slider" type="range" min="10" max="100" value="50" />
+          <div class="intensity-labels">
+            <span>Low (10%)</span>
+            <span>Medium (50%)</span>
+            <span>High (100%)</span>
+          </div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-item">
+            <div class="stat-value" id="poolStatus">Disconnected</div>
+            <div class="stat-label">Pool Status</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="difficulty">0</div>
+            <div class="stat-label">Difficulty</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="blockHeight">0</div>
+            <div class="stat-label">Block Height</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="algorithm">Panthera</div>
+            <div class="stat-label">Algorithm</div>
+          </div>
+        </div>
+
+        <div class="controls">
+          <button class="btn" id="startMiningBtn">Start Mining</button>
+          <button class="btn" id="stopMiningBtn">Stop Mining</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="dashboard-card">
+      <div class="card-title">📊 Mining Activity Log</div>
+      <div class="log-container" id="miningLog">
+        <div class="log-entry info">Scala XLA WebAssembly Miner initialized</div>
+        <div class="log-entry info">Panthera algorithm support loaded</div>
+        <div class="log-entry info">Ready for CryptoTab-style background mining</div>
+      </div>
+    </div>
+
+    <div class="cryptotab-branding">
+      <p>🔗 Powered by WebAssembly • Scala (XLA) Network • Panthera Algorithm</p>
+      <p>Experience seamless background mining like CryptoTab Browser</p>
+    </div>
+  </div>
+
+  <!-- ✅ CRITICAL: Script Load Order - Must be at bottom of body -->
+  <script src="scala-miner-complete.js"></script>
+
+  <!-- ✅ UI Event Binding -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Your comprehensive miner file provides these global functions
+      document.getElementById('setupBtn').onclick = function() {
+        try {
+          const wallet = document.getElementById('walletAddress').value.trim();
+          const pool = document.getElementById('poolSelect').value;
+          
+          if (!wallet) {
+            addLog("❌ Please enter a wallet address", "error");
+            return;
+          }
+          if (!pool) {
+            addLog("❌ Please select a mining pool", "error");
+            return;
+          }
+          
+          // Use the setupMining function from your comprehensive file
+          window.setupMining();
+        } catch (e) {
+          console.error('Error setting up miner:', e);
+          addLog("Error setting up miner: " + e, "error");
+        }
+      };
+
+      document.getElementById('miningToggle').onclick = function() {
+        try {
+          window.toggleBackgroundMining();
+        } catch (e) {
+          console.error('Error toggling miner:', e);
+          addLog("Error toggling miner: " + e, "error");
+        }
+      };
+
+      document.getElementById('startMiningBtn').onclick = function() {
+        try {
+          window.setupMining();
+        } catch (e) {
+          console.error('Error starting miner:', e);
+          addLog("Error starting miner: " + e, "error");
+        }
+      };
+
+      document.getElementById('stopMiningBtn').onclick = function() {
+        try {
+          window.stopMining();
+        } catch (e) {
+          console.error('Error stopping miner:', e);
+          addLog("Error stopping miner: " + e, "error");
+        }
+      };
+
+      document.getElementById('intensitySlider').onchange = function() {
+        try {
+          window.updateIntensity(this.value);
+        } catch (e) {
+          console.error('Error setting intensity:', e);
+          addLog("Error setting intensity: " + e, "error");
+        }
+      };
+    });
+  </script>
+</body>
+</html>

@@ -15,7 +15,7 @@ window.__ui = (function(){
   // tiny sparkline
   const rateHistory = [];
   function pushRate(val){
-    rateHistory.push(val||0);
+    rateHistory.push(val || 0);
     if (rateHistory.length>120) rateHistory.shift();
     drawRate();
   }
@@ -31,9 +31,9 @@ window.__ui = (function(){
     const max = Math.max(1, ...rateHistory);
     const step = w / Math.max(1, rateHistory.length-1);
     rateHistory.forEach((v,i)=>{
-      const x = i*step;
-      const y = h - (v/max)* (h-8) - 4;
-      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      const x = i * step;
+      const y = h - (v / max) * (h - 8) - 4;
+      if(i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
     });
     ctx.stroke();
   }
@@ -53,11 +53,13 @@ window.__ui = (function(){
   function setPoolStatus(text){ const el=document.getElementById("poolStatus"); if(el) el.textContent=text; }
   function setDifficulty(d){ const el=document.getElementById("difficulty"); if(el) el.textContent=d; }
   function setHeight(h){ const el=document.getElementById("blockHeight"); if(el) el.textContent=h; }
-  function setHashrate(hps){ const el=document.getElementById("hashRate"); if(el) el.textContent = String(hps); pushRate(Number(hps)||0); }
+  function setHashrate(hps){ const el=document.getElementById("hashRate"); if(el) el.textContent = String(hps); pushRate(Number(hps) || 0); }
   function setTotalHashes(n){ const el=document.getElementById("totalHashes"); if(el) el.textContent = String(n); }
   function setShares(n){ const el=document.getElementById("sharesFound"); if(el) el.textContent = String(n); }
   function setUptime(secs){
-    const h = Math.floor(secs/3600), m = Math.floor((secs%3600)/60), s = secs%60;
+    const h = Math.floor(secs/3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = secs % 60;
     const el=document.getElementById("uptime"); if(el) el.textContent = `${h.toString().padStart(2,"0")}:${m.toString().padStart(2,"0")}:${s.toString().padStart(2,"0")}`;
   }
   function setIntensityLabel(v){ const el=document.getElementById("intensityValue"); if(el) el.textContent=String(v); }
@@ -66,10 +68,7 @@ window.__ui = (function(){
   return { addLog, setStatus, setPoolStatus, setDifficulty, setHeight, setHashrate, setTotalHashes, setShares, setUptime, setIntensityLabel };
 })();
 
-// global helpers used by index.html buttons
-function addLog(m,t){ window.__ui.addLog(m,t); }
-function toggleBackgroundMining(){ if (window.scalaMiner) window.scalaMiner.toggleBackground(); }
-function setupMining(){ if (window.scalaMiner) window.scalaMiner.setupFromUI(); }
-function stopMining(){ if (window.scalaMiner) window.scalaMiner.stop(); }
-function updateIntensity(v){ if (window.scalaMiner) window.scalaMiner.setIntensity(Number(v)); window.__ui.setIntensityLabel(v); }
-document.addEventListener("DOMContentLoaded", ()=> addLog("CryptoTab-style Scala miner interface loaded","info"));
+// Remove redundant and unused code
+// The following global helper functions are not needed and should be removed.
+
+document.addEventListener("DOMContentLoaded", ()=> window.__ui.addLog("CryptoTab-style Scala miner interface loaded","info"));
