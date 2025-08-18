@@ -1,5 +1,5 @@
 [README.md](https://github.com/user-attachments/files/21828191/README.md)
-# CryptoTab-Style Scala (XLA) WebAssembly Miner
+# Modern-Style Scala (XLA) WebAssembly Miner
 
 A professional browser-based cryptocurrency miner for Scala (XLA) network, inspired by CryptoTab Browser's seamless mining experience. This implementation uses WebAssembly for high-performance mining with the Panthera algorithm, optimized for CPU and mobile devices.
 
