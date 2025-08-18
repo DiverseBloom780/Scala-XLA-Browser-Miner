@@ -1,257 +1,223 @@
-/****************************************************
- * Scala XLA WebAssembly Miner (CryptoTab-Style)
- ****************************************************/
+// scala-miner.js
+// WASM loader + background loop + UI wiring
 
-// ---------- Log helper ----------
-function addLog(message, type = "info") {
-  const log = document.getElementById("miningLog");
-  if (!log) return;
-  const time = new Date().toLocaleTimeString();
-  const entry = document.createElement("div");
-  entry.className = `log-entry ${type}`;
-  entry.textContent = `[${time}] ${message}`;
-  log.appendChild(entry);
-  log.scrollTop = log.scrollHeight;
-  if (log.children.length > 400) log.removeChild(log.firstChild);
-}
+(function(){
+  const state = {
+    started:false,
+    startTime:0,
+    shares:0,
+    loopTimer:null,
+    pool:null,
+    lastJobId:null,
+    intensity:50
+  };
 
-// ---------- ScalaPoolConnector ----------
-class ScalaPoolConnector {
-  constructor() {
-    this.websocket = null;
-    this.isConnected = false;
-    this.poolUrl = "";
-    this.walletAddress = "";
-    this.workerId = "scala_webminer_" + Math.random().toString(36).substr(2, 9);
-    this.currentJob = null;
-    this.difficulty = 1000;
-    this.onJobReceived = null;
-    this.onConnected = null;
-    this.onDisconnected = null;
-    this.onError = null;
-    this.messageId = 1;
+
+  // WASM readiness
+  let wasmReady = false;
+  function waitForWasm(cb){
+    if (wasmReady && typeof Module !== "undefined") return cb();
+    const start = Date.now();
+    const tid = setInterval(()=>{
+      if (typeof Module !== "undefined" && wasmReady){
+        clearInterval(tid);
+        cb();
+      } else if (Date.now()-start>15000){
+        clearInterval(tid);
+        addLog("⏳ WASM miner still not ready after 15s; will continue trying in background", "warning");
+      }
+    }, 250);
   }
 
-  connect(poolUrl, walletAddress) {
-    this.poolUrl = poolUrl;
-    this.walletAddress = (walletAddress || "").trim();
+  // ---- WASM loader ----
+  const importObject = { env: {
+    // stubs used by many Emscripten builds
+    abort: ()=>{},
+    emscripten_notify_memory_growth: ()=>{},
+  }};
 
+  function loadWasm(){
+    if (typeof window.Module === "undefined") window.Module = {};
+    // Ensure prints route to UI
+    window.Module.print = (t)=> addLog(String(t),"info");
+    window.Module.printErr = (t)=> addLog("WASM: "+String(t),"error");
+    // load scala-miner.wasm from same folder
+    return fetch("scala-miner.wasm")
+      .then(resp => {
+        if (!resp.ok) throw new Error("Failed to fetch wasm");
+        if (WebAssembly.instantiateStreaming) return WebAssembly.instantiateStreaming(resp, importObject);
+        return resp.arrayBuffer().then(buf => WebAssembly.instantiate(buf, importObject));
+      })
+      .then(obj => {
+        const inst = obj.instance;
+        // expose minimal Module.ccall wrapper
+        window.Module = window.Module || {};
+        const mem = inst.exports.memory;
+        Module._ = inst.exports;
+        Module.memory = mem;
+
+        // simple ccall for string in/out (UTF-8)
+        function getString(ptr){
+          const heap = new Uint8Array(mem.buffer);
+          let s="", i=ptr;
+          while (i<heap.length && heap[i]!==0){ s+=String.fromCharCode(heap[i++]); }
+          return decodeURIComponent(escape(s));
+        }
+        function toUtf8(str){
+          const enc = unescape(encodeURIComponent(str));
+          const arr = new Uint8Array(enc.length+1);
+          for (let i=0;i<enc.length;i++) arr[i]=enc.charCodeAt(i);
+          arr[enc.length]=0;
+          return arr;
+        }
+        Module.ccall = function(name, rettype, argtypes, args){
+          const fn = inst.exports[name];
+          if (!fn) throw new Error("WASM export not found: "+name);
+          // Only support string args for our use-cases
+          const ptrs = [];
+          const heapU8 = new Uint8Array(mem.buffer);
+          function malloc(len){
+            if (!Module.__heapPtr) Module.__heapPtr = 1024*1024; // 1MB offset
+            const p = Module.__heapPtr;
+            Module.__heapPtr += len;
+            return p;
+          }
+          const wasmArgs = (args||[]).map((a,i)=>{
+            if (argtypes && argtypes[i]==="string"){
+              const data = toUtf8(String(a));
+              const p = malloc(data.length);
+              heapU8.set(data, p);
+              ptrs.push(p);
+              return p;
+            }
+            return a|0;
+          });
+          const ret = fn(...wasmArgs);
+          if (rettype==="string") return getString(ret);
+          return ret;
+        };
+
+        // call ctor/init if available
+        try { Module._.__wasm_call_ctors && Module._.__wasm_call_ctors(); } catch{}
+        try {
+          const ok = Module.ccall("init_panthera","number",[],[]);
+          if (ok) addLog("Panthera init OK","success"); else addLog("Panthera init returned 0","warning");
+        } catch(e){ addLog("WASM init error: "+e.message,"error"); }
+
+        addLog("WebAssembly module loaded","success");
+      });
+  }
+
+  // ---- Mining control ----
+  function setJob(job){
+    state.lastJobId = job.job_id;
+    // Some pools send height/difficulty/seed_hash; keep optional
+    const blob = job.blob || "";
+    const seed = job.seed_hash || "";
+    const target = job.target || "";
     try {
-      addLog(`Connecting to pool: ${poolUrl}`, "info");
-      this.websocket = new WebSocket(poolUrl);
-
-      this.websocket.onopen = () => {
-        this.isConnected = true;
-        addLog("✅ Connected to Scala pool", "success");
-        this.login();
-        this.onConnected && this.onConnected();
-      };
-
-      this.websocket.onmessage = (event) => {
-        let msg;
-        try { msg = JSON.parse(event.data); }
-        catch { return addLog("Non-JSON pool message received", "warning"); }
-        this.handleMessage(msg);
-      };
-
-      this.websocket.onclose = () => {
-        this.isConnected = false;
-        addLog("⚠️ Disconnected from Scala pool", "warning");
-        this.onDisconnected && this.onDisconnected();
-      };
-
-      this.websocket.onerror = (error) => {
-        addLog("❌ Scala pool WebSocket error: " + (error?.message || String(error)), "error");
-        this.onError && this.onError(error);
-      };
-    } catch (error) {
-      addLog("Failed to connect: " + error, "error");
-      this.onError && this.onError(error);
+      if (typeof Module==='undefined' || !Module.ccall){ throw new Error('Module not ready'); }
+        Module.ccall("set_scala_job","number",["string","string","string","string","string"],[blob,seed,target,String(job.height||0),job.job_id||""]);
+      window.__ui.setDifficulty(job.difficulty || (job.target ? parseInt(job.target,16) : 0) || 0);
+      window.__ui.setHeight(job.height || 0);
+    } catch(e){
+      addLog("set_scala_job error: "+e.message,"error");
     }
   }
 
-  login() {
-    if (!this.isConnected) return;
+  function stepAndCollect(){
+    try {
+      Module.ccall("mine_step_background","void",[],[]);
+      const total = Module.ccall("get_hash_count","number",[],[])|0;
+      const rate  = Module.ccall("get_hash_rate","number",[],[])|0;
+      // Optional share readback
+      let nonce = 0, result = "";
+      try {
+        const curJob = Module.ccall("get_current_job_id","string",[],[]) || "";
+        if (curJob && curJob === state.lastJobId){
+          const maybeHash = Module.ccall("get_current_hash","string",[],[]);
+          const maybeNonce= Module.ccall("get_nonce","string",[],[]);
+          if (maybeHash && maybeHash.length>=64 && maybeNonce && maybeNonce.length>=8){
+            nonce = maybeNonce.toLowerCase();
+            result = maybeHash.toLowerCase();
+          }
+        }
+      } catch{ /* not fatal */ }
 
-    const loginMessage = {
-      id: this.messageId++,
-      jsonrpc: "2.0",
-      method: "login",
-      params: {
-        login: this.walletAddress,
-        pass: this.workerId || "webminer",
-        agent: "Scala-WebMiner/1.0"
+      // Update UI
+      window.__ui.setHashrate(rate);
+      window.__ui.setTotalHashes(total);
+
+      // Submit if we have a candidate
+      if (result){
+        state.shares++;
+        window.__ui.setShares(state.shares);
+        if (state.pool && state.pool.currentJob){
+          state.pool.submitShare(state.pool.currentJob, nonce, result);
+          // reset edge: allow wasm to move to next nonce
+          try { Module.ccall("reset_hash_count","void",[],[]); } catch{}
+        }
       }
-    };
-
-    this.sendMessage(loginMessage);
-    addLog(`🔑 Sent login request with worker ${this.workerId}`, "info");
-  }
-
-  handleMessage(message) {
-    if (message.method === "job" && message.params) {
-      this.currentJob = message.params;
-      addLog("📥 Job received: " + (this.currentJob.job_id || "?"), "success");
-      this.onJobReceived && this.onJobReceived(this.currentJob);
-      return;
-    }
-
-    if (message.result) {
-      const st = message.result.status || "";
-      if (st.toUpperCase() === "OK") {
-        addLog("✅ Share accepted by pool", "success");
-      } else {
-        addLog("ℹ️ Pool result: " + JSON.stringify(message.result), "info");
-      }
-      return;
-    }
-
-    if (message.error) {
-      addLog("❌ Pool error: " + JSON.stringify(message.error), "error");
-      return;
-    }
-
-    addLog("ℹ️ Pool message: " + JSON.stringify(message), "info");
-  }
-
-  sendMessage(message) {
-    if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
-      this.websocket.send(JSON.stringify(message));
-    } else {
-      addLog("WebSocket not ready", "error");
+    } catch(e){
+      addLog("mine_step error: "+e.message,"error");
     }
   }
 
-  disconnect() {
-    if (this.websocket) {
-      this.websocket.close();
-      this.websocket = null;
+  function startLoop(){
+    if (state.loopTimer) return;
+    state.startTime = Date.now();
+    window.__ui.setStatus(true);
+    let secs=0;
+    state.loopTimer = setInterval(()=>{
+      stepAndCollect();
+      secs = ((Date.now()-state.startTime)/1000)|0;
+      window.__ui.setUptime(secs);
+    }, 1000);
+  }
+  function stopLoop(){
+    if (state.loopTimer){ clearInterval(state.loopTimer); state.loopTimer=null; }
+    window.__ui.setStatus(false);
+  }
+
+  // ---- Public API ----
+  window.scalaMiner = {
+    setIntensity(v){
+      state.intensity = Math.max(10, Math.min(100, v|0));
+      try { Module.ccall("set_mining_intensity","void",["number"],[state.intensity]); } catch{}
+      window.__ui.setIntensityLabel(state.intensity);
+      addLog("Mining intensity set to "+state.intensity+"%","info");
+    },
+    setupFromUI(){
+      const wallet = (document.getElementById("walletAddress").value||"").trim();
+      const poolKey = (document.getElementById("poolSelect").value||"").trim();
+      if (!wallet){ addLog("Please enter wallet address","error"); return; }
+      if (!poolKey){ addLog("Please select a pool","error"); return; }
+      addLog(`Connecting to ${poolKey} pool with wallet: ${wallet}`,"info");
+
+      // connect pool
+      state.pool && state.pool.close();
+      state.pool = new ScalaPoolConnector();
+      state.pool.onJob = (job)=> setJob(job);
+      state.pool.connect(poolKey, wallet);
+
+      // start background loop
+      startLoop();
+      addLog("🚀 Mining started","success");
+    },
+    toggleBackground(){
+      if (state.loopTimer){ this.stop(); } else { this.setupFromUI(); }
+      const t = document.getElementById("miningToggle");
+      if (t) t.classList.toggle("active", !!state.loopTimer);
+    },
+    stop(){
+      stopLoop();
+      state.pool && state.pool.close();
+      addLog("⏹ Mining stopped","warning");
     }
-    this.isConnected = false;
-    this.currentJob = null;
-  }
-}
-
-// ---------- Pools ----------
-const SCALA_POOLS = {
-  herominers: { name: "HeroMiners (via proxy)", url: "ws://localhost:8080?pool=herominers" },
-  fairpool:   { name: "FairPool (via proxy)",   url: "ws://localhost:8080?pool=fairpool" },
-  poolmine:   { name: "PoolMine (via proxy)",   url: "ws://localhost:8080?pool=poolmine" },
-  scalaproject_low:  { name: "ScalaProject Props Low (diff 10k)",   url: "ws://localhost:8080?pool=scalaproject_low" },
-  scalaproject_mid:  { name: "ScalaProject Props Mid (diff 100k)", url: "ws://localhost:8080?pool=scalaproject_mid" },
-  scalaproject_high: { name: "ScalaProject Props High (diff 5M)",  url: "ws://localhost:8080?pool=scalaproject_high" },
-  scalaproject_solo: { name: "ScalaProject Solo Miner",            url: "ws://localhost:8080?pool=scalaproject_solo" }
-};
-
-// ---------- Global miner ----------
-window.scalaMiner = {
-  poolConnector: null,
-  miningInterval: null,
-  statsInterval: null,
-  stats: {
-    hashRate: 0,
-    totalHashes: 0,
-    sharesFound: 0,
-    startTime: null
-  }
-};
-
-// ---------- Setup Mining ----------
-function setupMining() {
-  const wallet = document.getElementById("walletAddress").value.trim();
-  const pool = document.getElementById("poolSelect").value;
-
-  if (!wallet) return addLog("❌ Please enter a Scala (XLA) wallet address", "error");
-  if (!pool) return addLog("❌ Please select a mining pool", "error");
-
-  if (wallet.length < 90 || wallet.length > 106) {
-    addLog(`⚠️ Wallet address looks unusual (length ${wallet.length})`, "warning");
-  }
-
-  addLog(`🔗 Connecting to ${pool} pool with wallet: ${wallet}`, "info");
-  document.getElementById("poolStatus").textContent = "Connecting";
-
-  window.scalaMiner.poolConnector = new ScalaPoolConnector();
-
-  scalaMiner.poolConnector.onConnected = () => {
-    document.getElementById("poolStatus").textContent = "Connected";
-    updateMiningStatus(true);
-    startMining();
   };
 
-  scalaMiner.poolConnector.onDisconnected = () => {
-    document.getElementById("poolStatus").textContent = "Disconnected";
-    updateMiningStatus(false);
-  };
-
-  scalaMiner.poolConnector.onError = (e) => {
-    document.getElementById("poolStatus").textContent = "Error";
-  };
-
-  scalaMiner.poolConnector.onJobReceived = (job) => {
-    if (job.difficulty) document.getElementById("difficulty").textContent = job.difficulty;
-    if (job.height) document.getElementById("blockHeight").textContent = job.height;
-  };
-
-  const poolConfig = SCALA_POOLS[pool];
-  if (!poolConfig) return addLog("❌ Invalid pool config", "error");
-  scalaMiner.poolConnector.connect(poolConfig.url, wallet);
-}
-
-// ---------- Start Mining ----------
-function startMining() {
-  if (!scalaMiner.poolConnector || !scalaMiner.poolConnector.isConnected) {
-    return addLog("❌ Cannot start mining: not connected", "error");
-  }
-
-  scalaMiner.stats.startTime = Date.now();
-
-  // fake hash updates for now
-  scalaMiner.miningInterval = setInterval(() => {
-    scalaMiner.stats.hashRate = (Math.random() * 100).toFixed(2);
-    scalaMiner.stats.totalHashes += Math.floor(Math.random() * 50);
-
-    document.getElementById("hashRate").textContent = scalaMiner.stats.hashRate;
-    document.getElementById("totalHashes").textContent = scalaMiner.stats.totalHashes;
-  }, 2000);
-
-  scalaMiner.statsInterval = setInterval(updateMiningStats, 1000);
-
-  addLog("🚀 Mining started", "success");
-  updateMiningStatus(true);
-}
-
-// ---------- Stop Mining ----------
-function stopMining() {
-  if (scalaMiner.poolConnector) {
-    scalaMiner.poolConnector.disconnect();
-  }
-  if (scalaMiner.miningInterval) clearInterval(scalaMiner.miningInterval);
-  if (scalaMiner.statsInterval) clearInterval(scalaMiner.statsInterval);
-
-  addLog("⏹ Mining stopped", "warning");
-  updateMiningStatus(false);
-}
-
-// ---------- Update mining status ----------
-function updateMiningStatus(active) {
-  const statusEl = document.getElementById("miningStatus");
-  if (active) {
-    statusEl.className = "mining-status active";
-    statusEl.innerHTML = '<div class="status-indicator"></div><span>Mining Active</span>';
-  } else {
-    statusEl.className = "mining-status inactive";
-    statusEl.innerHTML = '<div class="status-indicator"></div><span>Mining Inactive</span>';
-  }
-}
-
-// ---------- Update uptime ----------
-function updateMiningStats() {
-  const now = Date.now();
-  const elapsed = Math.floor((now - scalaMiner.stats.startTime) / 1000);
-  const h = Math.floor(elapsed / 3600),
-        m = Math.floor((elapsed % 3600) / 60),
-        s = elapsed % 60;
-  document.getElementById("uptime").textContent =
-    `${h.toString().padStart(2,"0")}:${m.toString().padStart(2,"0")}:${s.toString().padStart(2,"0")}`;
-}
+  // Auto-load WASM on page load
+  document.addEventListener("DOMContentLoaded", ()=>{
+    loadWasm().catch(err=> addLog("WASM load failed: "+err.message,"error"));
+  });
+})();

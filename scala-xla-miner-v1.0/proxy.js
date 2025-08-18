@@ -1,85 +1,67 @@
 // proxy.js
 // WebSocket <-> Stratum TCP proxy for Scala XLA mining
-
 const WebSocket = require("ws");
 const net = require("net");
 const url = require("url");
 
 const wss = new WebSocket.Server({ port: 8080 });
-
 console.log("✅ WebSocket proxy listening on ws://localhost:8080");
 
-// Map of supported pools
 const POOLS = {
-  herominers:        { host: "xla.herominers.com", port: 1111 },
-  fairpool:          { host: "xla.fairpool.xyz",   port: 3333 },
-  poolmine:          { host: "xla.poolmine.tk",    port: 4444 },
-  scalaproject_low:  { host: "mine.scalaproject.io", port: 3333 },
-  scalaproject_mid:  { host: "mine.scalaproject.io", port: 5555 },
-  scalaproject_high: { host: "mine.scalaproject.io", port: 7777 },
-  scalaproject_solo: { host: "mine.scalaproject.io", port: 8888 }
+  herominers:         { host: "xla.herominers.com",   port: 1111 },
+  fairpool:           { host: "xla.fairpool.xyz",     port: 3333 },
+  poolmine:           { host: "xla.poolmine.tk",      port: 4444 },
+  scalaproject_low:   { host: "mine.scalaproject.io", port: 3333 },
+  scalaproject_mid:   { host: "mine.scalaproject.io", port: 5555 },
+  scalaproject_high:  { host: "mine.scalaproject.io", port: 7777 },
+  scalaproject_solo:  { host: "mine.scalaproject.io", port: 8888 }
 };
 
 wss.on("connection", (ws, req) => {
   console.log("🌐 Browser miner connected");
-
-  // Pick pool from query param ?pool=scalaproject_low
   const params = url.parse(req.url, true).query;
-  const poolKey = params.pool || "herominers";
-  const pool = POOLS[poolKey];
-
-  if (!pool) {
-    console.error("❌ Unknown pool:", poolKey);
-    ws.send(JSON.stringify({ error: `Unknown pool: ${poolKey}` }));
-    ws.close();
-    return;
+  const key = params.pool || "scalaproject_low";
+  const pool = POOLS[key];
+  if (!pool){
+    ws.send(JSON.stringify({ id:0, jsonrpc:"2.0", error:{code:-2, message:"Unknown pool key: "+key} }));
+    return ws.close();
   }
-
   console.log(`🔗 Connecting to ${pool.host}:${pool.port}`);
 
-  const tcpSocket = net.createConnection(pool.port, pool.host, () => {
-    console.log(`✅ Connected to ${poolKey}`);
+  const tcp = net.createConnection({ host: pool.host, port: pool.port }, ()=>{
+    console.log("✅ Connected to", key);
   });
 
-  // TCP -> WS
-  tcpSocket.on("data", (data) => {
-    const str = data.toString("utf8").trim();
-    console.log("⬅️ Pool -> Proxy:", str);
-    try {
-      if (ws.readyState === WebSocket.OPEN) ws.send(str);
-    } catch (e) {
-      console.error("❌ Failed to forward TCP -> WS:", e.message);
-    }
+  tcp.setKeepAlive(true);
+
+  tcp.on("data", (buf)=>{
+    const s = buf.toString("utf8");
+    ws.readyState===WebSocket.OPEN && ws.send(s);
   });
 
-  tcpSocket.on("close", () => {
-    console.log("⚠️ TCP pool connection closed");
-    if (ws.readyState === WebSocket.OPEN) ws.close();
-  });
-
-  tcpSocket.on("error", (err) => {
+  tcp.on("error", (err)=>{
     console.error("❌ TCP error:", err.message);
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ error: "TCP connection error: " + err.message }));
-      ws.close();
-    }
+    ws.readyState===WebSocket.OPEN && ws.send(JSON.stringify({ jsonrpc:"2.0", error:{ code:-2, message:"TCP error: "+err.message } }));
+    ws.close();
   });
 
-  // WS -> TCP (wallet+login JSON must pass through cleanly)
-  ws.on("message", (msg) => {
-    console.log("➡️ Miner -> Proxy:", msg.toString());
-    if (tcpSocket.writable) {
-      tcpSocket.write(msg.toString().trim() + "\n");
-    }
+  tcp.on("close", ()=>{
+    console.log("⚠️ TCP closed");
+    ws.readyState===WebSocket.OPEN && ws.close();
   });
 
-  ws.on("close", () => {
-    console.log("⚠️ Browser miner disconnected");
-    if (tcpSocket.writable) tcpSocket.end();
+  ws.on("message", (msg)=>{
+    // Ensure newline framing for Stratum
+    if (tcp.writable) tcp.write(String(msg).trim()+"\n");
   });
 
-  ws.on("error", (err) => {
+  ws.on("close", ()=>{
+    console.log("⚠️ Browser disconnected");
+    tcp.destroy();
+  });
+
+  ws.on("error", (err)=>{
     console.error("❌ WS error:", err.message);
-    if (tcpSocket.writable) tcpSocket.end();
+    tcp.destroy();
   });
 });
