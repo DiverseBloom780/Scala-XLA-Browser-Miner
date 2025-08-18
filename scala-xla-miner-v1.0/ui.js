@@ -64,11 +64,136 @@ window.__ui = (function(){
   }
   function setIntensityLabel(v){ const el=document.getElementById("intensityValue"); if(el) el.textContent=String(v); }
 
-  // public
-  return { addLog, setStatus, setPoolStatus, setDifficulty, setHeight, setHashrate, setTotalHashes, setShares, setUptime, setIntensityLabel };
+  // Helper function to get form values and validate them
+  function getFormData() {
+    const wallet = document.getElementById('walletAddress')?.value?.trim();
+    const pool = document.getElementById('poolSelect')?.value;
+    
+    return { wallet, pool };
+  }
+
+  // Setup mining function that grabs form data and forwards to scala-miner.js
+  function setupMining() {
+    const { wallet, pool } = getFormData();
+    
+    // Validation
+    if (!wallet) {
+      addLog("⚠ Please enter a wallet address", "error");
+      return false;
+    }
+    
+    if (!pool) {
+      addLog("⚠ Please select a mining pool", "error");
+      return false;
+    }
+
+    // Basic wallet validation (Scala addresses are typically ~95 characters)
+    if (wallet.length < 90 || wallet.length > 110) {
+      addLog("⚠ Wallet address appears to be invalid length", "warning");
+    }
+
+    addLog(`🔧 Setting up miner with pool: ${pool}`, "info");
+    addLog(`💼 Wallet: ${wallet.substring(0, 10)}...${wallet.substring(wallet.length - 10)}`, "info");
+
+    // Forward to the main scala-miner.js setupFromUI function
+    try {
+      if (window.scalaMiner && typeof window.scalaMiner.setupFromUI === 'function') {
+        return window.scalaMiner.setupFromUI(wallet, pool);
+      } else {
+        addLog("❌ Scala miner not loaded or setupFromUI not available", "error");
+        return false;
+      }
+    } catch (error) {
+      addLog(`❌ Setup error: ${error.message}`, "error");
+      console.error("Setup mining error:", error);
+      return false;
+    }
+  }
+
+  // Toggle background mining
+  function toggleBackgroundMining() {
+    const toggleEl = document.getElementById('miningToggle');
+    if (!toggleEl) return;
+
+    const isActive = toggleEl.classList.contains('active');
+    
+    if (isActive) {
+      // Stop mining
+      if (window.scalaMiner && typeof window.scalaMiner.stop === 'function') {
+        window.scalaMiner.stop();
+        toggleEl.classList.remove('active');
+        setStatus(false);
+        addLog("⏹ Background mining stopped", "info");
+      }
+    } else {
+      // Start mining - first setup if needed
+      if (setupMining()) {
+        toggleEl.classList.add('active');
+        setStatus(true);
+        addLog("▶ Background mining started", "success");
+      }
+    }
+  }
+
+  // Stop mining
+  function stopMining() {
+    const toggleEl = document.getElementById('miningToggle');
+    if (toggleEl) {
+      toggleEl.classList.remove('active');
+    }
+    
+    setStatus(false);
+    
+    if (window.scalaMiner && typeof window.scalaMiner.stop === 'function') {
+      window.scalaMiner.stop();
+      addLog("⏹ Mining stopped", "info");
+    }
+  }
+
+  // Update mining intensity
+  function updateIntensity(value) {
+    const intensity = parseInt(value);
+    setIntensityLabel(intensity);
+    
+    if (window.scalaMiner && typeof window.scalaMiner.setIntensity === 'function') {
+      window.scalaMiner.setIntensity(intensity);
+      addLog(`⚙ Mining intensity set to ${intensity}%`, "info");
+    }
+  }
+
+  // public API
+  return { 
+    addLog, 
+    setStatus, 
+    setPoolStatus, 
+    setDifficulty, 
+    setHeight, 
+    setHashrate, 
+    setTotalHashes, 
+    setShares, 
+    setUptime, 
+    setIntensityLabel,
+    setupMining,
+    toggleBackgroundMining,
+    stopMining,
+    updateIntensity,
+    getFormData
+  };
 })();
 
-// Remove redundant and unused code
-// The following global helper functions are not needed and should be removed.
+// Make key functions available globally for HTML event handlers
+window.addLog = window.__ui.addLog;
+window.setupMining = window.__ui.setupMining;
+window.toggleBackgroundMining = window.__ui.toggleBackgroundMining;
+window.stopMining = window.__ui.stopMining;
+window.updateIntensity = window.__ui.updateIntensity;
 
-document.addEventListener("DOMContentLoaded", ()=> window.__ui.addLog("CryptoTab-style Scala miner interface loaded","info"));
+document.addEventListener("DOMContentLoaded", () => {
+  window.__ui.addLog("CryptoTab-style Scala miner interface loaded", "info");
+  
+  // Initialize intensity slider display
+  const intensitySlider = document.getElementById('intensitySlider');
+  if (intensitySlider) {
+    window.__ui.setIntensityLabel(intensitySlider.value);
+  }
+});
