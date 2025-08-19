@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Scala XLA Multi-Miner Controller</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #111;
+      color: #eee;
+      padding: 20px;
+    }
+    .controls {
+      margin-bottom: 20px;
+    }
+    iframe {
+      width: 400px;
+      height: 300px;
+      border: 1px solid #444;
+      margin: 5px;
+    }
+    .hidden-frame {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>Scala XLA Multi-Miner Controller</h1>
+  <div class="controls">
+    <label>Number of Instances: 
+      <input id="instances" type="number" value="4" min="1" max="16">
+    </label>
+    <br><br>
+    <label>Pool Key:
+      <input id="pool" type="text" value="scalaproject_low">
+    </label>
+    <br><br>
+    <label>Wallet:
+      <input id="wallet" type="text" size="80" placeholder="Your wallet address here">
+    </label>
+    <br><br>
+    <label>
+      <input id="hideFrames" type="checkbox"> Run miners hidden
+    </label>
+    <br><br>
+    <button onclick="startMiners()">Start Miners</button>
+    <button onclick="stopMiners()">Stop Miners</button>
+  </div>
+
+  <div id="miners"></div>
+
+  <script>
+    let frames = [];
+
+    function startMiners() {
+      stopMiners(); // clear old ones
+
+      const count = parseInt(document.getElementById("instances").value, 10);
+      const pool = encodeURIComponent(document.getElementById("pool").value);
+      const wallet = encodeURIComponent(document.getElementById("wallet").value);
+      const hidden = document.getElementById("hideFrames").checked;
+
+      for (let i = 0; i < count; i++) {
+        const iframe = document.createElement("iframe");
+        iframe.src = `scala-miner.html?pool=${pool}&wallet=${wallet}&id=${i}`;
+        if (hidden) iframe.className = "hidden-frame";
+        document.getElementById("miners").appendChild(iframe);
+        frames.push(iframe);
+      }
+    }
+
+    function stopMiners() {
+      frames.forEach(f => f.remove());
+      frames = [];
+    }
+  </script>
+</body>
+</html>
