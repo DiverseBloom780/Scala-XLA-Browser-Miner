@@ -48,10 +48,10 @@ A professional browser-based cryptocurrency miner for Scala (XLA) network, inspi
 
 2. Serve the files using a web server:
    ```bash
-   python3 -m http.server 8080
+  npx http-server -p 8081
    ```
 
-3. Open `http://localhost:8080/index.html` in your browser
+3. Open `http://127.0.0.1:8081/scala-miner.html` in your browser
 
 ### Configuration
 1. **Wallet Setup**: Enter your 95-character Scala (XLA) wallet address
@@ -129,9 +129,8 @@ A professional browser-based cryptocurrency miner for Scala (XLA) network, inspi
 
 ### File Structure
 ```
-monero-wasm-miner/
+monero-wasm-miner/            # Pool connectivity
 ├── panthera-wasm.c           # WebAssembly mining core
-├── scala-pool-connector.js   # Pool connectivity
 ├── cryptotab-template.html   # User interface template
 ├── Makefile                  # Build configuration
 ├── scala-miner.html          # Compiled output
