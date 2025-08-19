@@ -47,7 +47,7 @@ A professional browser-based cryptocurrency miner for Scala (XLA) network, inspi
    - `scala-pool-connector.js` (pool connectivity)
 
 2. Serve the files using a web server:
-   npx http-server -p 8081
+   npx http-server -p 8081 --mime .wasm=application/wasm
 
 
 3. Open `http://127.0.0.1:8081/scala-miner.html` in your browser
