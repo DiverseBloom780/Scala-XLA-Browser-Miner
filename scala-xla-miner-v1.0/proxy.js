@@ -51,34 +51,39 @@ wss.on("connection", (ws, req) => {
     s.split("\n").forEach((line) => {
       if (!line) return;
 
-      console.log("⬇️ Pool -> Browser:", line);
+      // Always log raw JSON
+      console.log("⬇️ Pool raw:", line);
+
+      // Forward to browser
+      if (ws.readyState === WebSocket.OPEN) ws.send(line);
 
       try {
         const msg = JSON.parse(line);
-        // Share result
+
+        // --- Share results ---
         if (msg.id === 2 && msg.result && msg.result.status === "OK") {
           console.log("✅ Share accepted by pool!");
         } else if (msg.id === 2 && msg.error) {
           console.log("❌ Share rejected:", msg.error.message || JSON.stringify(msg.error));
         }
-        // New job info
+
+        // --- New job info ---
         if (msg.method === "job" || (msg.result && msg.result.job)) {
           const job = msg.method === "job" ? msg.params : msg.result.job;
-          // Convert target hex to difficulty
           let difficulty = null;
           try {
             const targetNum = parseInt(job.target, 16);
-            if (targetNum > 0) {
-              difficulty = Math.floor(0xFFFFFFFF / targetNum);
-            }
-      } catch {}
+            if (targetNum > 0) difficulty = Math.floor(0xFFFFFFFF / targetNum);
+          } catch {}
           if (difficulty) {
             console.log(`🔥 New job ${job.job_id} | Height: ${job.height} | Target: ${job.target} | Diff: ${difficulty}`);
           } else {
             console.log(`🔥 New job ${job.job_id} | Height: ${job.height} | Target: ${job.target}`);
           }
         }
-      } catch {}
+      } catch (err) {
+        console.log("⚠️ JSON parse failed:", err.message);
+      }
     });
   });
 
@@ -118,4 +123,3 @@ wss.on("connection", (ws, req) => {
     tcp.destroy();
   });
 });
-
