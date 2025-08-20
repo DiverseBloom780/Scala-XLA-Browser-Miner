@@ -34,6 +34,16 @@ async function initWasm() {
     const results = await WebAssembly.instantiate(bytes, importObject);
     const instance = results.instance;
 
+    // Helper function to read null-terminated ASCII string from WASM memory
+    function getStringFromMemory(ptr) {
+      const memory = new Uint8Array(instance.exports.memory.buffer);
+      let str = "";
+      for (let i = ptr; memory[i] !== 0; i++) {
+        str += String.fromCharCode(memory[i]);
+      }
+      return str;
+    }
+
     // Create Module object compatible with your existing code
     window.Module = {
       instance,
@@ -57,9 +67,7 @@ async function initWasm() {
           // Handle different return types
           switch (returnType) {
             case "string":
-              // For string returns, you'd need to read from WASM memory
-              // This is a simplified version - real implementation needs memory management
-              return result ? String(result) : "";
+              return result ? getStringFromMemory(result) : "";
             
             case "number":
               return Number(result);
