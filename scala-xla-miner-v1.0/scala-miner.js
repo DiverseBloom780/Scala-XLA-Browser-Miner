@@ -221,7 +221,7 @@ class ScalaMiner {
 
 // Helper function to compare hash against target difficulty
 function meetsTarget(hashHex, targetHex) {
-  // Convert hex string into little-endian BigInt
+  // little-endian conversion for comparison
   const hashInt = BigInt("0x" + hashHex.match(/../g).reverse().join(""));
   const targetInt = BigInt("0x" + targetHex.match(/../g).reverse().join(""));
   return hashInt <= targetInt;
