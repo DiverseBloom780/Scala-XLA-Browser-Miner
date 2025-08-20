@@ -1,5 +1,5 @@
 // ===============================
-// Scala Miner - Main Mining Logic
+// Scala Miner - Main Mining Logic (FIXED)
 // ===============================
 
 class ScalaMiner {
@@ -13,7 +13,8 @@ class ScalaMiner {
       startTime: null,
       totalHashes: 0,
       sharesFound: 0,
-      hashRate: 0
+      hashRate: 0,
+      nonceCounter: 0 // Add nonce counter for proper incrementing
     };
 
     console.log("🔧 ScalaMiner instance created");
@@ -72,6 +73,7 @@ class ScalaMiner {
 
       this.minerState.wallet = wallet;
       this.minerState.pool = poolName;
+      this.minerState.nonceCounter = 0; // Reset nonce counter
 
       this.poolConnector = new ScalaPoolConnector(wallet, poolName);
       this.setupPoolEventHandlers();
@@ -105,6 +107,7 @@ class ScalaMiner {
     console.log("🚀 Starting mining...");
     this.mining = true;
     this.minerState.startTime = Date.now();
+    this.minerState.nonceCounter = 0; // Reset nonce counter
 
     window.__ui?.setStatus?.(true);
     window.__ui?.addLog?.("🚀 Mining started", "success");
@@ -132,7 +135,8 @@ class ScalaMiner {
       startTime: null,
       totalHashes: 0,
       sharesFound: 0,
-      hashRate: 0
+      hashRate: 0,
+      nonceCounter: 0
     };
     window.__ui?.setPoolStatus?.("Disconnected");
   }
@@ -144,7 +148,41 @@ class ScalaMiner {
     window.__ui?.addLog?.(`⚙ Intensity set to ${this.intensity}%`, "info");
   }
 
+  // FIXED: Proper nonce formatting for Scala/Cryptonote
+  formatNonce(nonce) {
+    // Convert nonce to 32-bit little-endian hex string (8 chars, zero-padded)
+    let nonceInt = parseInt(nonce) || this.minerState.nonceCounter;
+    
+    // Ensure it's within 32-bit range
+    nonceInt = nonceInt & 0xFFFFFFFF;
+    
+    // Convert to little-endian 4-byte hex string
+    const bytes = [
+      (nonceInt & 0xFF),
+      (nonceInt >> 8) & 0xFF,
+      (nonceInt >> 16) & 0xFF,
+      (nonceInt >> 24) & 0xFF
+    ];
+    
+    const nonceHex = bytes.map(b => b.toString(16).padStart(2, '0')).join('');
+    console.log(`🔢 Formatted nonce: ${nonceInt} -> ${nonceHex} (little-endian)`);
+    return nonceHex;
+  }
 
+  // FIXED: Proper hash formatting for pool submission
+  formatResultHash(hash) {
+    // Hash should be submitted as big-endian hex (not reversed)
+    // Remove any 0x prefix and ensure lowercase
+    let cleanHash = hash.replace(/^0x/, '').toLowerCase();
+    
+    // Ensure it's 64 characters (32 bytes)
+    if (cleanHash.length !== 64) {
+      console.warn(`⚠️ Hash length incorrect: ${cleanHash.length}, expected 64`);
+    }
+    
+    console.log(`🔍 Formatted result hash: ${cleanHash}`);
+    return cleanHash;
+  }
 
   loop() {
     if (!this.mining) return;
@@ -156,19 +194,29 @@ class ScalaMiner {
         return;
       }
 
+      // Increment nonce counter for proper nonce generation
+      this.minerState.nonceCounter++;
+      
       Module.ccall("mine_step_background", "void", [], []);
       this.minerState.totalHashes++;
 
       const hash = Module.ccall("get_current_hash", "string", [], []);
-      const nonce = Module.ccall("get_nonce", "string", [], []);
+      const rawNonce = Module.ccall("get_nonce", "string", [], []) || this.minerState.nonceCounter;
 
       if (hash && this.poolConnector?.isConnectedToPool()) {
         const currentJob = this.poolConnector.getCurrentJob();
-        if (currentJob && meetsTarget(hash, currentJob.target)) {
-          if (this.poolConnector.submitResult(nonce, hash)) {
+        if (currentJob && this.meetsTarget(hash, currentJob.target)) {
+          console.log("🎯 Found potential share!");
+          
+          // Format nonce and hash properly for Scala
+          const formattedNonce = this.formatNonce(rawNonce);
+          const formattedHash = this.formatResultHash(hash);
+          
+          if (this.poolConnector.submitResult(formattedNonce, formattedHash)) {
             this.minerState.sharesFound++;
             window.__ui?.setShares?.(this.minerState.sharesFound);
-            console.log("✅ Valid share submitted");
+            console.log("✅ Valid share submitted to pool");
+            window.__ui?.addLog?.(`✅ Share submitted! Total: ${this.minerState.sharesFound}`, "success");
           }
         }
       }
@@ -179,6 +227,31 @@ class ScalaMiner {
 
     const delay = Math.max(100, 2100 - (this.intensity * 20));
     setTimeout(() => this.loop(), delay);
+  }
+
+  // FIXED: Proper target comparison for Scala/Cryptonote
+  meetsTarget(hashHex, targetHex) {
+    try {
+      // Remove 0x prefix if present
+      const cleanHash = hashHex.replace(/^0x/, '');
+      const cleanTarget = targetHex.replace(/^0x/, '');
+      
+      // For Cryptonote/Scala, we need to compare as big-endian
+      // Convert hex strings to BigInt for proper comparison
+      const hashBig = BigInt("0x" + cleanHash);
+      const targetBig = BigInt("0x" + cleanTarget);
+      
+      const meets = hashBig <= targetBig;
+      
+      if (meets) {
+        console.log(`🎯 TARGET MET! Hash: ${cleanHash.substring(0, 16)}... <= Target: ${cleanTarget.substring(0, 16)}...`);
+      }
+      
+      return meets;
+    } catch (e) {
+      console.error("❌ Target comparison error:", e);
+      return false;
+    }
   }
 
   startUIUpdates() {
@@ -219,15 +292,8 @@ class ScalaMiner {
   }
 }
 
-function meetsTarget(hashHex, targetHex) {
-  // Convert hex to BigInt (little-endian)
-  const hashInt = BigInt("0x" + hashHex.match(/../g).reverse().join(""));
-  const targetInt = BigInt("0x" + targetHex.match(/../g).reverse().join(""));
-  return hashInt <= targetInt;
-}
-
 // ===============================
-// Scala Pool Connector (full version merged)
+// Scala Pool Connector (FIXED)
 // ===============================
 
 class ScalaPoolConnector {
@@ -264,7 +330,7 @@ class ScalaPoolConnector {
       this.socket.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          console.log("[POOL] Received message:", data);
+          console.log("[POOL] ⬇️ Received message:", data);
 
           if (data.id === 1 && data.result?.id) {
             this.loginId = data.result.id;
@@ -277,22 +343,28 @@ class ScalaPoolConnector {
             this.handleJob(job);
           }
 
+          // FIXED: Better share result handling with detailed logging
           if (data.id === 2) {
+            console.log("[POOL] 📥 Share submission response:", JSON.stringify(data, null, 2));
+            
             if (data.result?.status === "OK") {
-              console.log("✅ Share accepted by pool");
-              window.addLog?.("✅ Share accepted by pool", "success");
+              console.log("✅ SHARE ACCEPTED BY POOL!");
+              window.__ui?.addLog?.("✅ Share accepted by pool", "success");
             } else if (data.error) {
-              console.warn("❌ Pool error:", data.error);
-              window.addLog?.(`❌ Pool error: ${data.error.message || data.error}`, "error");
+              console.warn("❌ SHARE REJECTED:", data.error);
+              window.__ui?.addLog?.(`❌ Share rejected: ${data.error.message || JSON.stringify(data.error)}`, "error");
+            } else {
+              console.log("📝 Share response (unknown format):", data);
             }
           }
 
           if (data.error && data.id !== 2) {
             console.warn("⚠️ Pool error:", data.error);
-            window.addLog?.(`⚠️ Pool error: ${data.error.message || data.error}`, "error");
+            window.__ui?.addLog?.(`⚠️ Pool error: ${data.error.message || JSON.stringify(data.error)}`, "error");
           }
         } catch (e) {
           console.error("Error parsing pool message:", e);
+          console.log("Raw message:", event.data);
         }
       };
 
@@ -300,7 +372,7 @@ class ScalaPoolConnector {
         console.error("⚠️ Socket error:", err);
         this.isConnected = false;
         window.__ui?.setPoolStatus?.("Error");
-        window.addLog?.("⚠️ Pool connection error", "error");
+        window.__ui?.addLog?.("⚠️ Pool connection error", "error");
       };
 
       this.socket.onclose = (event) => {
@@ -308,7 +380,7 @@ class ScalaPoolConnector {
         this.isConnected = false;
         this.loginId = null;
         window.__ui?.setPoolStatus?.("Disconnected");
-        window.addLog?.("⚠️ Disconnected from pool, retrying in 5s...", "warning");
+        window.__ui?.addLog?.("⚠️ Disconnected from pool, retrying in 5s...", "warning");
         this.reconnectTimeout = setTimeout(() => {
           console.log("[POOL] Attempting to reconnect...");
           window.__ui?.setPoolStatus?.("Reconnecting...");
@@ -318,7 +390,7 @@ class ScalaPoolConnector {
 
     } catch (error) {
       console.error("Failed to create WebSocket connection:", error);
-      window.addLog?.(`Failed to connect to pool: ${error.message}`, "error");
+      window.__ui?.addLog?.(`Failed to connect to pool: ${error.message}`, "error");
     }
   }
 
@@ -330,14 +402,31 @@ class ScalaPoolConnector {
     this.loginId = null;
     this.job = null;
     console.log("✅ Disconnected from pool");
-    window.addLog?.("✅ Disconnected from pool", "info");
+    window.__ui?.addLog?.("✅ Disconnected from pool", "info");
   }
 
   handleJob(job) {
     console.log("🔥 New job received:", job.job_id);
     console.log("🎯 Job target:", job.target);
+    console.log("📦 Job blob length:", job.blob?.length);
+    
     this.job = job;
-    window.addLog?.(`🔥 New job: ${job.job_id}`, "info");
+    
+    // Calculate and display difficulty
+    try {
+      const targetBig = BigInt("0x" + job.target);
+      const maxTarget = BigInt("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF");
+      const difficulty = Number(maxTarget / targetBig);
+      window.__ui?.addLog?.(`🔥 New job: ${job.job_id} (diff: ${Math.floor(difficulty).toLocaleString()})`, "info");
+      
+      // Update UI with job info
+      const diffEl = document.getElementById('difficulty');
+      const heightEl = document.getElementById('blockHeight');
+      if (diffEl) diffEl.textContent = Math.floor(difficulty).toLocaleString();
+      if (heightEl) heightEl.textContent = job.height || 'Unknown';
+    } catch (e) {
+      window.__ui?.addLog?.(`🔥 New job: ${job.job_id}`, "info");
+    }
 
     try {
       if (typeof Module !== 'undefined' && Module.ccall) {
@@ -348,33 +437,50 @@ class ScalaPoolConnector {
       }
     } catch (e) {
       console.error("❌ Error setting job in WASM:", e);
-      window.addLog?.(`❌ Error setting job: ${e.message}`, "error");
+      window.__ui?.addLog?.(`❌ Error setting job: ${e.message}`, "error");
     }
   }
 
+  // FIXED: Enhanced submitResult with detailed logging and proper formatting
   submitResult(nonce, resultHash) {
     if (!this.job) {
       console.warn("⚠️ No job available for result submission");
+      window.__ui?.addLog?.("⚠️ No job available for submission", "warning");
       return false;
     }
     if (!this.loginId) {
       console.warn("⚠️ Not logged in to pool");
+      window.__ui?.addLog?.("⚠️ Not logged in to pool", "warning");
       return false;
     }
 
-    console.log("📤 Submitting result:", resultHash.substring(0, 16) + "...");
-    window.addLog?.(`📤 Submitting share: ${resultHash.substring(0, 16)}...`, "info");
+    // Create the submission payload
+    const payload = {
+      id: 2,
+      method: "submit",
+      params: { 
+        id: this.loginId, 
+        job_id: this.job.job_id, 
+        nonce: nonce, 
+        result: resultHash 
+      }
+    };
+
+    console.log("📤 SUBMITTING SHARE TO POOL:");
+    console.log("   Job ID:", this.job.job_id);
+    console.log("   Nonce:", nonce, "(length:", nonce.length, ")");
+    console.log("   Result:", resultHash, "(length:", resultHash.length, ")");
+    console.log("   Login ID:", this.loginId);
+    console.log("   Full payload:", JSON.stringify(payload, null, 2));
+    
+    window.__ui?.addLog?.(`📤 Submitting share: ${resultHash.substring(0, 16)}... (nonce: ${nonce})`, "info");
 
     try {
-      this.send({
-        id: 2,
-        method: "submit",
-        params: { id: this.loginId, job_id: this.job.job_id, nonce, result: resultHash }
-      });
+      this.send(payload);
       return true;
     } catch (error) {
       console.error("❌ Error submitting result:", error);
-      window.addLog?.(`❌ Submit error: ${error.message}`, "error");
+      window.__ui?.addLog?.(`❌ Submit error: ${error.message}`, "error");
       return false;
     }
   }
@@ -382,13 +488,16 @@ class ScalaPoolConnector {
   send(obj) {
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       try {
-        this.socket.send(JSON.stringify(obj));
-        console.log("[POOL] Sent:", obj.method || `id:${obj.id}`);
+        const jsonStr = JSON.stringify(obj);
+        console.log("[POOL] ⬆️ Sending to pool:", jsonStr);
+        this.socket.send(jsonStr);
       } catch (error) {
         console.error("❌ Error sending to pool:", error);
+        window.__ui?.addLog?.(`❌ Send error: ${error.message}`, "error");
       }
     } else {
       console.warn("⚠️ Cannot send - socket not connected");
+      window.__ui?.addLog?.("⚠️ Cannot send - socket not connected", "warning");
     }
   }
 
@@ -418,12 +527,15 @@ window.startMining = () => window.scalaMiner.startMining();
 window.stopMining = () => window.scalaMiner.stop();
 window.updateIntensity = (v) => window.scalaMiner.setIntensity(v);
 
-console.log("✅ ScalaMiner + ScalaPoolConnector merged and loaded");
+console.log("✅ ScalaMiner + ScalaPoolConnector FIXED and loaded");
+
 // Ensure miner only starts once WASM is ready
 if (typeof window !== "undefined") {
   window.Module = window.Module || {};
   window.Module.onRuntimeInitialized = () => {
     console.log("🎉 WASM is ready, you can safely start mining now.");
+    window.__ui?.addLog?.("🎉 WASM runtime initialized", "success");
+    
     // Auto-start mining if already configured
     if (window.scalaMiner?.minerState?.wallet && window.scalaMiner?.minerState?.pool) {
       console.log("🚀 Auto-starting miner after WASM init...");

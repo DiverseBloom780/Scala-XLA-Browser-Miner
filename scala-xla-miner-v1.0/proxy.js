@@ -1,5 +1,6 @@
-// proxy.js
+// proxy.js (FIXED)
 // WebSocket <-> Stratum TCP proxy for Scala XLA mining
+// Enhanced logging and 1:1 JSON forwarding
 
 const WebSocket = require("ws");
 const net = require("net");
@@ -19,107 +20,225 @@ const POOLS = {
 };
 
 wss.on("connection", (ws, req) => {
-  console.log("🌐 Browser miner connected");
+  const timestamp = new Date().toISOString();
+  console.log(`\n🌐 [${timestamp}] Browser miner connected`);
 
   const params = url.parse(req.url, true).query;
   const key = params.pool || "scalaproject_low";
   const pool = POOLS[key];
 
   if (!pool) {
-    ws.send(JSON.stringify({
+    const errorMsg = JSON.stringify({
       id: 0,
       jsonrpc: "2.0",
       error: { code: -2, message: "Unknown pool key: " + key }
-    }));
+    });
+    console.log(`❌ [${timestamp}] Unknown pool key: ${key}`);
+    ws.send(errorMsg);
     return ws.close();
   }
 
-  console.log(`🔗 Connecting to ${pool.host}:${pool.port}`);
+  console.log(`🔗 [${timestamp}] Connecting to ${pool.host}:${pool.port} (pool key: ${key})`);
 
   const tcp = net.createConnection({ host: pool.host, port: pool.port }, () => {
-    console.log("✅ Connected to", key);
+    console.log(`✅ [${new Date().toISOString()}] TCP connected to ${key} (${pool.host}:${pool.port})`);
   });
 
   tcp.setKeepAlive(true);
+  tcp.setTimeout(60000); // 60 second timeout
 
-  // Forward pool -> browser
+  // Enhanced pool -> browser forwarding with detailed logging
   tcp.on("data", (buf) => {
-    const s = buf.toString("utf8").trim();
-    if (!s) return;
+    const rawData = buf.toString("utf8");
+    const timestamp = new Date().toISOString();
+    
+    // Log raw data received from pool
+    console.log(`\n⬇️ [${timestamp}] RAW POOL DATA (${rawData.length} bytes):`);
+    console.log(`"${rawData}"`);
+    
+    // Handle potential multiple JSON objects in one chunk
+    const lines = rawData.trim().split("\n").filter(line => line.trim());
+    
+    lines.forEach((line, index) => {
+      const trimmedLine = line.trim();
+      if (!trimmedLine) return;
 
-    // Pools may send multiple JSON objects in one chunk
-    s.split("\n").forEach((line) => {
-      if (!line) return;
+      console.log(`📦 [${timestamp}] Processing line ${index + 1}/${lines.length}:`);
+      console.log(`"${trimmedLine}"`);
 
-      // Always log raw JSON
-      console.log("⬇️ Pool raw:", line);
+      // Forward exact line to browser (no modifications)
+      if (ws.readyState === WebSocket.OPEN) {
+        console.log(`🚀 [${timestamp}] Forwarding to browser: ${trimmedLine}`);
+        ws.send(trimmedLine);
+      } else {
+        console.log(`⚠️ [${timestamp}] Cannot forward - WebSocket not open (state: ${ws.readyState})`);
+      }
 
-      // Forward to browser
-      if (ws.readyState === WebSocket.OPEN) ws.send(line);
-
+      // Parse and analyze the JSON for logging purposes
       try {
-        const msg = JSON.parse(line);
-
-        // --- Share results ---
-        if (msg.id === 2 && msg.result && msg.result.status === "OK") {
-          console.log("✅ Share accepted by pool!");
-        } else if (msg.id === 2 && msg.error) {
-          console.log("❌ Share rejected:", msg.error.message || JSON.stringify(msg.error));
-        }
-
-        // --- New job info ---
-        if (msg.method === "job" || (msg.result && msg.result.job)) {
-          const job = msg.method === "job" ? msg.params : msg.result.job;
-          let difficulty = null;
-          try {
-            const targetNum = parseInt(job.target, 16);
-            if (targetNum > 0) difficulty = Math.floor(0xFFFFFFFF / targetNum);
-          } catch {}
-          if (difficulty) {
-            console.log(`🔥 New job ${job.job_id} | Height: ${job.height} | Target: ${job.target} | Diff: ${difficulty}`);
+        const msg = JSON.parse(trimmedLine);
+        
+        // Enhanced share result logging
+        if (msg.id === 2) {
+          console.log(`\n🎯 [${timestamp}] SHARE SUBMISSION RESPONSE:`);
+          console.log(`   ID: ${msg.id}`);
+          
+          if (msg.result && msg.result.status === "OK") {
+            console.log(`   ✅ STATUS: ACCEPTED`);
+            console.log(`   📊 Result: ${JSON.stringify(msg.result)}`);
+          } else if (msg.error) {
+            console.log(`   ❌ STATUS: REJECTED`);
+            console.log(`   🚫 Error: ${JSON.stringify(msg.error)}`);
           } else {
-            console.log(`🔥 New job ${job.job_id} | Height: ${job.height} | Target: ${job.target}`);
+            console.log(`   ❓ STATUS: UNKNOWN`);
+            console.log(`   📋 Full response: ${JSON.stringify(msg)}`);
           }
         }
-      } catch (err) {
-        console.log("⚠️ JSON parse failed:", err.message);
+
+        // Enhanced job logging
+        if (msg.method === "job" || (msg.result && msg.result.job)) {
+          const job = msg.method === "job" ? msg.params : msg.result.job;
+          console.log(`\n🔥 [${timestamp}] NEW JOB RECEIVED:`);
+          console.log(`   Job ID: ${job.job_id}`);
+          console.log(`   Height: ${job.height || 'Unknown'}`);
+          console.log(`   Target: ${job.target}`);
+          console.log(`   Blob length: ${job.blob?.length || 'Unknown'}`);
+          
+          // Calculate difficulty if possible
+          try {
+            const targetBig = BigInt("0x" + job.target);
+            const maxTarget = BigInt("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF");
+            const difficulty = Number(maxTarget / targetBig);
+            console.log(`   Difficulty: ${Math.floor(difficulty).toLocaleString()}`);
+          } catch (diffErr) {
+            console.log(`   Difficulty: Could not calculate (${diffErr.message})`);
+          }
+        }
+
+        // Login response logging
+        if (msg.id === 1 && msg.result) {
+          console.log(`\n🔑 [${timestamp}] LOGIN RESPONSE:`);
+          console.log(`   Login ID: ${msg.result.id}`);
+          console.log(`   Status: ${msg.result.status || 'Success'}`);
+          if (msg.result.job) {
+            console.log(`   Initial job included: ${msg.result.job.job_id}`);
+          }
+        }
+
+      } catch (parseErr) {
+        console.log(`⚠️ [${timestamp}] JSON parse failed: ${parseErr.message}`);
+        console.log(`📝 Raw line: "${trimmedLine}"`);
       }
     });
   });
 
   tcp.on("error", (err) => {
-    console.error("❌ TCP error:", err.message);
+    const timestamp = new Date().toISOString();
+    console.error(`❌ [${timestamp}] TCP connection error: ${err.message}`);
     if (ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ jsonrpc:"2.0", error:{ code:-2, message:"TCP error: "+err.message } }));
+      const errorResponse = JSON.stringify({ 
+        jsonrpc:"2.0", 
+        error:{ code:-2, message:"TCP error: "+err.message } 
+      });
+      console.log(`🚨 [${timestamp}] Sending error to browser: ${errorResponse}`);
+      ws.send(errorResponse);
     }
     ws.close();
   });
 
+  tcp.on("timeout", () => {
+    const timestamp = new Date().toISOString();
+    console.log(`⏰ [${timestamp}] TCP connection timeout`);
+    tcp.destroy();
+  });
+
   tcp.on("close", () => {
-    console.log("⚠️ TCP closed");
+    const timestamp = new Date().toISOString();
+    console.log(`⚠️ [${timestamp}] TCP connection closed`);
     if (ws.readyState === WebSocket.OPEN) ws.close();
   });
 
-  // Forward browser -> pool
+  // Enhanced browser -> pool forwarding with share detection
   ws.on("message", (msg) => {
-    const clean = msg.toString().trim();
-    console.log("⬆️ Browser -> Pool:", clean);
+    const timestamp = new Date().toISOString();
+    const msgStr = msg.toString().trim();
+    
+    console.log(`\n⬆️ [${timestamp}] BROWSER -> POOL (${msgStr.length} chars):`);
+    console.log(`"${msgStr}"`);
 
-    // Highlight when browser submits a share
-    if (clean.includes('"method":"submit"')) {
-      console.log("📤 Browser submitted a share!");
+    // Parse and analyze the message for enhanced logging
+    try {
+      const parsed = JSON.parse(msgStr);
+      
+      // Enhanced share submission logging
+      if (parsed.method === "submit") {
+        console.log(`\n📤 [${timestamp}] SHARE SUBMISSION DETECTED:`);
+        console.log(`   Method: ${parsed.method}`);
+        console.log(`   ID: ${parsed.id}`);
+        console.log(`   Login ID: ${parsed.params?.id}`);
+        console.log(`   Job ID: ${parsed.params?.job_id}`);
+        console.log(`   Nonce: ${parsed.params?.nonce} (length: ${parsed.params?.nonce?.length})`);
+        console.log(`   Result: ${parsed.params?.result?.substring(0, 16)}...${parsed.params?.result?.slice(-16)} (length: ${parsed.params?.result?.length})`);
+        console.log(`   🚀 BROWSER SUBMITTED A SHARE!`);
+      }
+
+      // Login attempt logging
+      if (parsed.method === "login") {
+        console.log(`\n🔐 [${timestamp}] LOGIN ATTEMPT:`);
+        console.log(`   Wallet: ${parsed.params?.login?.substring(0, 10)}...${parsed.params?.login?.slice(-10)}`);
+        console.log(`   Agent: ${parsed.params?.agent}`);
+      }
+
+    } catch (parseErr) {
+      console.log(`⚠️ [${timestamp}] Could not parse browser message: ${parseErr.message}`);
     }
 
-    if (tcp.writable) tcp.write(clean + "\n");
+    // Forward exact message to pool (with newline as required by Stratum)
+    if (tcp.writable) {
+      const messageWithNewline = msgStr + "\n";
+      console.log(`📡 [${timestamp}] Forwarding to pool with newline: "${messageWithNewline.replace(/\n$/, '\\n')}"`);
+      tcp.write(messageWithNewline);
+    } else {
+      console.log(`❌ [${timestamp}] Cannot forward to pool - TCP not writable`);
+    }
   });
 
-  ws.on("close", () => {
-    console.log("⚠️ Browser disconnected");
-    tcp.destroy();
+  ws.on("close", (code, reason) => {
+    const timestamp = new Date().toISOString();
+    console.log(`⚠️ [${timestamp}] Browser disconnected (code: ${code}, reason: ${reason})`);
+    if (tcp && !tcp.destroyed) {
+      tcp.destroy();
+    }
   });
 
   ws.on("error", (err) => {
-    console.error("❌ WS error:", err.message);
-    tcp.destroy();
+    const timestamp = new Date().toISOString();
+    console.error(`❌ [${timestamp}] WebSocket error: ${err.message}`);
+    if (tcp && !tcp.destroyed) {
+      tcp.destroy();
+    }
   });
 });
+
+// Enhanced process logging
+process.on('SIGINT', () => {
+  console.log('\n🛑 Received SIGINT, shutting down gracefully...');
+  wss.close(() => {
+    console.log('✅ WebSocket server closed');
+    process.exit(0);
+  });
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('💥 Uncaught Exception:', err);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
+
+console.log("🎯 Enhanced Scala XLA Mining Proxy Ready");
+console.log("📊 Available pools:", Object.keys(POOLS).join(", "));
+console.log("🔍 Enhanced logging enabled for debugging share submissions");

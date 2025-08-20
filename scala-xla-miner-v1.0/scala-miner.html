@@ -360,10 +360,10 @@
             <label for="poolSelect">Mining Pool</label>
             <select id="poolSelect">
               <option value="">Select a Scala mining pool...</option>
-              <option value="scalaproject_low">ScalaProject Low (3333)</option>
-              <option value="scalaproject_mid">ScalaProject Mid (5555)</option>
-              <option value="scalaproject_high">ScalaProject High (7777)</option>
-              <option value="scalaproject_solo">ScalaProject Solo (8888)</option>
+              <option value="scalaproject_low">mine.scalaproject.io:3333</option>
+              <option value="herominers">xla.herominers.com:1111</option>
+              <option value="fairpool">xla.fairpool.xyz:3333</option>
+              <option value="poolmine">xla.poolmine.tk:4444</option>
             </select>
           </div>
           <button class="btn btn-primary" id="setupBtn">Setup Miner</button>
@@ -423,12 +423,98 @@
   <!-- ✅ CRITICAL: Script Load Order - Must be at bottom of body -->
   <script src="scala-miner.wasm.js"></script>       <!-- WASM loader --> 
   <script src="scala-miner.js"></script>            <!-- miner core logic -->
-    <script src="ui.js"></script>                     <!-- UI helpers -->
+  <script src="ui.js"></script>                     <!-- UI helpers -->
 
   <!-- ✅ UI Event Binding -->
   <script>
+    // Global log function for debugging
+    window.addLog = function(message, type = "info") {
+      const logContainer = document.getElementById('miningLog');
+      if (logContainer) {
+        const entry = document.createElement('div');
+        entry.className = `log-entry ${type}`;
+        entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+        logContainer.appendChild(entry);
+        logContainer.scrollTop = logContainer.scrollHeight;
+      }
+      console.log(`[LOG-${type.toUpperCase()}] ${message}`);
+    };
+
+    // Toggle background mining function
+    window.toggleBackgroundMining = function() {
+      const toggle = document.getElementById('miningToggle');
+      const isActive = toggle.classList.contains('active');
+      
+      if (isActive) {
+        toggle.classList.remove('active');
+        window.stopMining();
+        addLog("Background mining disabled", "info");
+      } else {
+        const wallet = document.getElementById('walletAddress').value.trim();
+        const pool = document.getElementById('poolSelect').value;
+        
+        if (!wallet || !pool) {
+          addLog("Please configure wallet and pool first", "warning");
+          return;
+        }
+        
+        toggle.classList.add('active');
+        window.setupMining();
+        addLog("Background mining enabled", "success");
+      }
+    };
+
     document.addEventListener('DOMContentLoaded', function() {
-      // Your comprehensive miner file provides these global functions
+      // Initialize UI object for miner callbacks
+      window.__ui = {
+        addLog: window.addLog,
+        setStatus: function(active) {
+          const status = document.getElementById('miningStatus');
+          const toggle = document.getElementById('miningToggle');
+          if (active) {
+            status.classList.add('active');
+            status.classList.remove('inactive');
+            status.querySelector('span').textContent = 'Mining Active';
+            toggle.classList.add('active');
+          } else {
+            status.classList.remove('active');
+            status.classList.add('inactive');
+            status.querySelector('span').textContent = 'Mining Inactive';
+            toggle.classList.remove('active');
+          }
+        },
+        setPoolStatus: function(status) {
+          const el = document.getElementById('poolStatus');
+          if (el) el.textContent = status;
+        },
+        setHashrate: function(rate) {
+          const el = document.getElementById('hashRate');
+          if (el) el.textContent = rate.toLocaleString();
+        },
+        setTotalHashes: function(total) {
+          const el = document.getElementById('totalHashes');
+          if (el) el.textContent = total.toLocaleString();
+        },
+        setShares: function(shares) {
+          const el = document.getElementById('sharesFound');
+          if (el) el.textContent = shares;
+        },
+        setUptime: function(seconds) {
+          const el = document.getElementById('uptime');
+          if (el) {
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = seconds % 60;
+            el.textContent = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+          }
+        },
+        setIntensityLabel: function(value) {
+          const el = document.getElementById('intensityValue');
+          if (el) el.textContent = value;
+        }
+      };
+
+      // Setup button
       document.getElementById('setupBtn').onclick = function() {
         try {
           const wallet = document.getElementById('walletAddress').value.trim();
@@ -443,38 +529,49 @@
             return;
           }
           
-          // Use the setupMining function from your comprehensive file
           window.setupMining();
         } catch (e) {
           console.error('Error setting up miner:', e);
-          addLog("Error setting up miner: " + e, "error");
+          addLog("Error setting up miner: " + e.message, "error");
         }
       };
 
+      // Mining toggle
       document.getElementById('miningToggle').onclick = function() {
         try {
           window.toggleBackgroundMining();
         } catch (e) {
           console.error('Error toggling miner:', e);
-          addLog("Error toggling miner: " + e, "error");
+          addLog("Error toggling miner: " + e.message, "error");
         }
       };
 
+      // Start mining button
       document.getElementById('startMiningBtn').onclick = function() {
         try {
           window.setupMining();
         } catch (e) {
           console.error('Error starting miner:', e);
-          addLog("Error starting miner: " + e, "error");
+          addLog("Error starting miner: " + e.message, "error");
         }
       };
 
+      // Stop mining button
       document.getElementById('stopMiningBtn').onclick = function() {
         try {
           window.stopMining();
         } catch (e) {
           console.error('Error stopping miner:', e);
-          addLog("Error stopping miner: " + e, "error");
+          addLog("Error stopping miner: " + e.message, "error");
+        }
+      };
+
+      // Intensity slider
+      document.getElementById('intensitySlider').oninput = function() {
+        try {
+          document.getElementById('intensityValue').textContent = this.value;
+        } catch (e) {
+          console.error('Error updating intensity display:', e);
         }
       };
 
@@ -483,7 +580,7 @@
           window.updateIntensity(this.value);
         } catch (e) {
           console.error('Error setting intensity:', e);
-          addLog("Error setting intensity: " + e, "error");
+          addLog("Error setting intensity: " + e.message, "error");
         }
       };
     });
