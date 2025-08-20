@@ -144,6 +144,41 @@ class ScalaMiner {
     window.__ui?.addLog?.(`⚙ Intensity set to ${this.intensity}%`, "info");
   }
 
+  // Helper function to compare hash against target difficulty
+  meetsTarget(hash, target) {
+    try {
+      // Convert hex strings to little-endian byte arrays
+      const hashBytes = this.hexToLittleEndianBytes(hash);
+      const targetBytes = this.hexToLittleEndianBytes(target);
+      
+      // Compare as 256-bit little-endian integers (hash <= target)
+      for (let i = 31; i >= 0; i--) {
+        if (hashBytes[i] < targetBytes[i]) return true;
+        if (hashBytes[i] > targetBytes[i]) return false;
+      }
+      return true; // Equal is also valid
+    } catch (e) {
+      console.error("❌ Error comparing hash to target:", e);
+      return false;
+    }
+  }
+
+  // Convert hex string to little-endian byte array
+  hexToLittleEndianBytes(hex) {
+    // Remove 0x prefix if present
+    hex = hex.replace(/^0x/, '');
+    
+    // Pad to 64 characters (256 bits)
+    hex = hex.padStart(64, '0');
+    
+    const bytes = new Uint8Array(32);
+    // Convert hex pairs to bytes in little-endian order
+    for (let i = 0; i < 32; i++) {
+      bytes[i] = parseInt(hex.substr((31 - i) * 2, 2), 16);
+    }
+    return bytes;
+  }
+
   loop() {
     if (!this.mining) return;
 
@@ -161,10 +196,24 @@ class ScalaMiner {
       const nonce = Module.ccall("get_nonce", "string", [], []);
 
       if (hash && this.poolConnector?.isConnectedToPool()) {
-        if (this.poolConnector.submitResult(nonce, hash)) {
-          this.minerState.sharesFound++;
-          window.__ui?.setShares?.(this.minerState.sharesFound);
-          console.log("✅ Share submitted");
+        // Get current job to check target
+        const job = this.poolConnector.getCurrentJob();
+        
+        if (job && job.target) {
+          // Check if hash meets target difficulty
+          if (this.meetsTarget(hash, job.target)) {
+            console.log("🎯 Valid share found! Hash meets target difficulty");
+            if (this.poolConnector.submitResult(nonce, hash)) {
+              this.minerState.sharesFound++;
+              window.__ui?.setShares?.(this.minerState.sharesFound);
+              console.log("✅ Valid share submitted");
+              window.__ui?.addLog?.(`✅ Valid share submitted: ${hash.substring(0, 16)}...`, "success");
+            }
+          } else {
+            console.log("🔍 Hash doesn't meet target, continuing...");
+          }
+        } else {
+          console.warn("⚠️ No job or target available for difficulty check");
         }
       }
     } catch (e) {
@@ -323,6 +372,7 @@ class ScalaPoolConnector {
 
   handleJob(job) {
     console.log("🔥 New job received:", job.job_id);
+    console.log("🎯 Job target:", job.target);
     this.job = job;
     window.addLog?.(`🔥 New job: ${job.job_id}`, "info");
 
@@ -406,3 +456,15 @@ window.stopMining = () => window.scalaMiner.stop();
 window.updateIntensity = (v) => window.scalaMiner.setIntensity(v);
 
 console.log("✅ ScalaMiner + ScalaPoolConnector merged and loaded");
+// Ensure miner only starts once WASM is ready
+if (typeof window !== "undefined") {
+  window.Module = window.Module || {};
+  window.Module.onRuntimeInitialized = () => {
+    console.log("🎉 WASM is ready, you can safely start mining now.");
+    // Auto-start mining if already configured
+    if (window.scalaMiner?.minerState?.wallet && window.scalaMiner?.minerState?.pool) {
+      console.log("🚀 Auto-starting miner after WASM init...");
+      window.scalaMiner.startMining();
+    }
+  };
+}
