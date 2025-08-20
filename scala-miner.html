@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scala Web Miner</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .config-section {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .config-section h3 {
+            margin-bottom: 15px;
+            color: #87CEEB;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #E6E6FA;
+        }
+
+        input[type="text"], select {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        input[type="text"]:focus, select:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(135, 206, 235, 0.5);
+            transform: translateY(-2px);
+        }
+
+        .intensity-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        input[type="range"] {
+            flex: 1;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #87CEEB;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        .intensity-value {
+            min-width: 50px;
+            text-align: center;
+            font-weight: bold;
+            color: #87CEEB;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        button {
+            flex: 1;
+            padding: 15px 25px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn-start {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+        }
+
+        .btn-stop {
+            background: linear-gradient(135deg, #dc3545, #fd7e14);
+            color: white;
+        }
+
+        .btn-setup {
+            background: linear-gradient(135deg, #6f42c1, #e83e8c);
+            color: white;
+        }
+
+        button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .stat-card h4 {
+            color: #87CEEB;
+            margin-bottom: 10px;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stat-card .value {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: white;
+        }
+
+        .status-indicators {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .status-active { background-color: #28a745; }
+        .status-inactive { background-color: #6c757d; }
+        .status-connected { background-color: #17a2b8; }
+        .status-error { background-color: #dc3545; }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .log-section {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            padding: 20px;
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .log-section h3 {
+            margin-bottom: 15px;
+            color: #87CEEB;
+        }
+
+        .log-entry {
+            margin-bottom: 8px;
+            padding: 8px 12px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            border-left: 3px solid transparent;
+        }
+
+        .log-success { 
+            background: rgba(40, 167, 69, 0.2); 
+            border-left-color: #28a745;
+            color: #d4edda;
+        }
+
+        .log-error { 
+            background: rgba(220, 53, 69, 0.2); 
+            border-left-color: #dc3545;
+            color: #f8d7da;
+        }
+
+        .log-warning { 
+            background: rgba(255, 193, 7, 0.2); 
+            border-left-color: #ffc107;
+            color: #fff3cd;
+        }
+
+        .log-info { 
+            background: rgba(23, 162, 184, 0.2); 
+            border-left-color: #17a2b8;
+            color: #d1ecf1;
+        }
+
+        .config-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        @media (max-width: 768px) {
+            .config-row {
+                grid-template-columns: 1fr;
+            }
+            
+            .button-group {
+                flex-direction: column;
+            }
+            
+            .status-indicators {
+                flex-direction: column;
+                gap: 10px;
+            }
+        }
+
+        .worker-group {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 15px;
+            align-items: end;
+        }
+
+        @media (max-width: 768px) {
+            .worker-group {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏗️ Scala Web Miner</h1>
+        
+        <div class="config-section">
+            <h3>⚙️ Configuration</h3>
+            
+            <div class="form-group">
+                <label for="walletAddress">Wallet Address:</label>
+                <input type="text" id="walletAddress" placeholder="Sv... (your Scala wallet address)" 
+                       value="Sv4C6Lr2Dk8hzCCtdjBGWdJKnfgdwGfb6HZWjQZWuktZM8nR2JuTShb2RrUY5PJbkzMdVCYfMCUjw81gJsyNdbcS2NLQHHqAh7">
+            </div>
+            
+            <div class="form-group">
+                <label for="workerName">Worker Name:</label>
+                <input type="text" id="workerName" placeholder="DESKTOP-27TI0SG" />
+            </div>
+            
+            <div class="config-row">
+                <div class="form-group">
+                    <label for="poolSelect">Mining Pool:</label>
+                    <select id="poolSelect">
+                        <option value="scalaproject_low">ScalaProject (Low Diff)</option>
+                        <option value="scalaproject_high">ScalaProject (High Diff)</option>
+                        <option value="woolypooly">WoolyPooly</option>
+                        <option value="custom">Custom Pool</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="intensity">Mining Intensity: <span id="intensityLabel" class="intensity-value">50%</span></label>
+                <div class="intensity-container">
+                    <input type="range" id="intensity" min="10" max="100" value="50" 
+                           oninput="document.getElementById('intensityLabel').textContent = this.value + '%'; updateIntensity(this.value)">
+                </div>
+            </div>
+            
+            <div class="button-group">
+                <button class="btn-setup" onclick="setupMining()">🔧 Setup Mining</button>
+                <button class="btn-start" onclick="startMining()">🚀 Start Mining</button>
+                <button class="btn-stop" onclick="stopMining()">⏹️ Stop Mining</button>
+            </div>
+        </div>
+
+        <div class="status-indicators">
+            <div class="status-indicator">
+                <div id="minerStatus" class="status-dot status-inactive"></div>
+                <span>Miner: <span id="minerStatusText">Inactive</span></span>
+            </div>
+            <div class="status-indicator">
+                <div id="poolStatus" class="status-dot status-inactive"></div>
+                <span>Pool: <span id="poolStatusText">Disconnected</span></span>
+            </div>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h4>Hash Rate</h4>
+                <div class="value" id="hashrate">0 H/s</div>
+            </div>
+            <div class="stat-card">
+                <h4>Total Hashes</h4>
+                <div class="value" id="totalHashes">0</div>
+            </div>
+            <div class="stat-card">
+                <h4>Shares Found</h4>
+                <div class="value" id="shares">0</div>
+            </div>
+            <div class="stat-card">
+                <h4>Uptime</h4>
+                <div class="value" id="uptime">0s</div>
+            </div>
+            <div class="stat-card">
+                <h4>Difficulty</h4>
+                <div class="value" id="difficulty">-</div>
+            </div>
+            <div class="stat-card">
+                <h4>Block Height</h4>
+                <div class="value" id="blockHeight">-</div>
+            </div>
+        </div>
+
+        <div class="log-section">
+            <h3>📋 Mining Log</h3>
+            <div id="logContainer"></div>
+        </div>
+    </div>
+
+    <!-- Load WASM Panthera Hash Module -->
+    <script src="panthera-hash.js"></script>
+    
+    <!-- Load Scala Miner -->
+    <script src="scala-miner.js"></script>
+
+    <script>
+        // UI Helper Functions
+        window.__ui = {
+            setStatus: (active) => {
+                const dot = document.getElementById('minerStatus');
+                const text = document.getElementById('minerStatusText');
+                if (active) {
+                    dot.className = 'status-dot status-active';
+                    text.textContent = 'Mining';
+                } else {
+                    dot.className = 'status-dot status-inactive';
+                    text.textContent = 'Inactive';
+                }
+            },
+
+            setPoolStatus: (status) => {
+                const dot = document.getElementById('poolStatus');
+                const text = document.getElementById('poolStatusText');
+                text.textContent = status;
+                
+                switch(status.toLowerCase()) {
+                    case 'connected':
+                        dot.className = 'status-dot status-connected';
+                        break;
+                    case 'error':
+                        dot.className = 'status-dot status-error';
+                        break;
+                    case 'reconnecting...':
+                    case 'connecting...':
+                        dot.className = 'status-dot status-inactive';
+                        break;
+                    default:
+                        dot.className = 'status-dot status-inactive';
+                }
+            },
+
+            setHashrate: (rate) => {
+                document.getElementById('hashrate').textContent = rate.toLocaleString() + ' H/s';
+            },
+
+            setTotalHashes: (total) => {
+                document.getElementById('totalHashes').textContent = total.toLocaleString();
+            },
+
+            setShares: (shares) => {
+                document.getElementById('shares').textContent = shares;
+            },
+
+            setUptime: (seconds) => {
+                const hours = Math.floor(seconds / 3600);
+                const minutes = Math.floor((seconds % 3600) / 60);
+                const secs = seconds % 60;
+                document.getElementById('uptime').textContent = 
+                    `${hours}h ${minutes}m ${secs}s`;
+            },
+
+            setIntensityLabel: (value) => {
+                document.getElementById('intensityLabel').textContent = value + '%';
+            },
+
+            addLog: (message, type = 'info') => {
+                const container = document.getElementById('logContainer');
+                const entry = document.createElement('div');
+                entry.className = `log-entry log-${type}`;
+                
+                const timestamp = new Date().toLocaleTimeString();
+                entry.textContent = `[${timestamp}] ${message}`;
+                
+                container.appendChild(entry);
+                container.scrollTop = container.scrollHeight;
+                
+                // Keep only last 100 log entries
+                while (container.children.length > 100) {
+                    container.removeChild(container.firstChild);
+                }
+            }
+        };
+
+        // Initialize with welcome message
+        window.__ui.addLog('🎉 Scala Web Miner initialized', 'success');
+        window.__ui.addLog('ℹ️ Configure your wallet and pool, then click Setup Mining', 'info');
+    </script>
+</body>
+</html>
