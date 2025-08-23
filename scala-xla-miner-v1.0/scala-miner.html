@@ -1,589 +1,1076 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>CryptoTab-Style Scala XLA Miner</title>
-  <style>
-    :root { 
-      --bg:#0f1220; 
-      --panel:#111633; 
-      --border:#273057; 
-      --muted:#9aa6df; 
-      --text:#e8eefc; 
-      --accent:#1f3bb3; 
-      --accent2:#2e4ae0; 
-    }
-    * { box-sizing:border-box; }
-    
-    body { 
-      font-family: system-ui, Arial, sans-serif; 
-      margin:0; 
-      background:var(--bg); 
-      color:var(--text); 
-    }
-    
-    .cryptotab-header { 
-      position:sticky; 
-      top:0; 
-      background:#151939; 
-      border-bottom:1px solid var(--border); 
-      z-index:10; 
-    }
-    
-    .header-content { 
-      max-width:1100px; 
-      margin:0 auto; 
-      padding:14px 16px; 
-      display:flex; 
-      justify-content:space-between; 
-      align-items:center; 
-    }
-    
-    .logo { 
-      font-weight:800; 
-      letter-spacing:.2px; 
-      font-size:18px; 
-    }
-    
-    .mining-toggle { 
-      display:flex; 
-      gap:12px; 
-      align-items:center; 
-      opacity:.9; 
-      transition:opacity .2s; 
-    }
-    
-    .toggle-switch { 
-      width:54px; 
-      height:28px; 
-      background:#2a3568; 
-      border-radius:999px; 
-      padding:3px; 
-      box-shadow: inset 0 0 0 1px #31407a; 
-      cursor:pointer; 
-    }
-    
-    .toggle-switch .toggle-slider { 
-      width:22px; 
-      height:22px; 
-      background:#a7b5f5; 
-      border-radius:999px; 
-      transform: translateX(0); 
-      transition: transform .2s, background .2s; 
-    }
-    
-    .toggle-switch.active { 
-      background:#1d7c3a; 
-      box-shadow: inset 0 0 0 1px #209848; 
-    }
-    
-    .toggle-switch.active .toggle-slider { 
-      transform: translateX(26px); 
-      background:#eafff0; 
-    }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scala Web Miner</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-    .container { 
-      max-width:1100px; 
-      margin:24px auto; 
-      padding:0 16px; 
-    }
-    
-    .feature-highlight { 
-      background:var(--panel); 
-      border:1px solid var(--border); 
-      border-radius:12px; 
-      padding:16px; 
-      margin-bottom:16px; 
-    }
-    
-    .mining-dashboard { 
-      display:grid; 
-      grid-template-columns:1.15fr .85fr; 
-      gap:16px; 
-    }
-    
-    @media (max-width:1000px){ 
-      .mining-dashboard { grid-template-columns:1fr; } 
-    }
-    
-    .dashboard-card { 
-      background:var(--panel); 
-      border:1px solid var(--border); 
-      border-radius:12px; 
-      padding:16px; 
-    }
-    
-    .card-title { 
-      font-weight:800; 
-      margin-bottom:12px; 
-      display:flex; 
-      align-items:center; 
-      gap:8px; 
-    }
-    
-    .earnings-display { 
-      display:flex; 
-      align-items:baseline; 
-      gap:12px; 
-      margin-bottom:8px; 
-    }
-    
-    .earnings-amount { 
-      font-size:30px; 
-      font-weight:800; 
-    }
-    
-    .mining-status { 
-      display:flex; 
-      align-items:center; 
-      gap:10px; 
-      margin:10px 0; 
-      padding:8px 10px; 
-      border-radius:8px; 
-      border:1px solid var(--border); 
-    }
-    
-    .mining-status .status-indicator { 
-      width:10px; 
-      height:10px; 
-      border-radius:999px; 
-      background:#6a728f; 
-    }
-    
-    .mining-status.active .status-indicator { 
-      background:#1ef074; 
-      box-shadow:0 0 12px #1ef074aa; 
-    }
-    
-    .stats-grid { 
-      display:grid; 
-      grid-template-columns:repeat(4,1fr); 
-      gap:10px; 
-      margin-top:10px; 
-    }
-    
-    @media (max-width:700px){ 
-      .stats-grid { grid-template-columns:repeat(2,1fr); } 
-    }
-    
-    .stat-item { 
-      background:#0f1430; 
-      border:1px solid #25305d; 
-      border-radius:10px; 
-      padding:10px; 
-    }
-    
-    .stat-label { 
-      color:var(--muted); 
-      font-size:12px; 
-      margin-top:4px; 
-    }
-    
-    .stat-value { 
-      font-weight:800; 
-      font-variant-numeric:tabular-nums; 
-    }
-    
-    .wallet-setup .input-group { 
-      display:flex; 
-      flex-direction:column; 
-      gap:6px; 
-      margin-bottom:10px; 
-    }
-    
-    input, select { 
-      background:#0f1430; 
-      color:var(--text); 
-      border:1px solid var(--border); 
-      border-radius:8px; 
-      padding:10px; 
-      width:100%; 
-      outline:none; 
-    }
-    
-    .btn { 
-      padding:10px 14px; 
-      border-radius:8px; 
-      border:1px solid var(--border); 
-      background:#182050; 
-      color:var(--text); 
-      cursor:pointer; 
-      transition: background .2s;
-    }
-    
-    .btn:hover {
-      background:#1e2866;
-    }
-    
-    .btn-primary { 
-      background:var(--accent); 
-      border-color:var(--accent2); 
-    }
-    
-    .btn-primary:hover {
-      background:var(--accent2);
-    }
-    
-    .intensity-control { 
-      margin-top:14px; 
-    }
-    
-    .intensity-slider { 
-      width:100%; 
-    }
-    
-    .intensity-labels { 
-      display:flex; 
-      justify-content:space-between; 
-      font-size:12px; 
-      color:var(--muted); 
-      margin-top:6px; 
-    }
-    
-    .log-container { 
-      height:200px; 
-      overflow:auto; 
-      background:#0e1230; 
-      border:1px solid var(--border); 
-      border-radius:10px; 
-      padding:10px; 
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; 
-    }
-    
-    .log-entry { 
-      font-size:12px; 
-      line-height:1.35; 
-      color:#bfc8f1; 
-      margin-bottom:4px;
-    }
-    
-    .log-entry.success { 
-      color:#a6f7c5; 
-    }
-    
-    .log-entry.error { 
-      color:#ff9aa6; 
-    }
-    
-    .log-entry.warning { 
-      color:#ffe09a; 
-    }
-    
-    .cryptotab-branding { 
-      text-align:center; 
-      color:var(--muted); 
-      opacity:.9; 
-      margin:18px 0; 
-    }
-    
-    .controls { 
-      display:flex; 
-      gap:10px; 
-      margin:18px 0; 
-    }
-    
-    canvas { 
-      width:100%; 
-      height:160px; 
-      display:block; 
-      background:#0b1030; 
-      border:1px solid #222a55; 
-      border-radius:8px; 
-    }
-  </style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+            background: linear-gradient(45deg, #87CEEB, #ADD8E6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .config-section {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .config-section:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .config-section h3 {
+            margin-bottom: 20px;
+            color: #87CEEB;
+            font-size: 1.2em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 18px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #E6E6FA;
+            font-size: 0.9em;
+        }
+
+        input[type="text"], select {
+            width: 100%;
+            padding: 12px 16px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+
+        input[type="text"]:focus, select:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(135, 206, 235, 0.3);
+            border-color: #87CEEB;
+            transform: translateY(-1px);
+        }
+
+        .intensity-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        input[type="range"] {
+            flex: 1;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            width: 22px;
+            height: 22px;
+            background: linear-gradient(45deg, #87CEEB, #4682B4);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 10px rgba(135, 206, 235, 0.3);
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+            box-shadow: 0 4px 15px rgba(135, 206, 235, 0.5);
+        }
+
+        .intensity-value {
+            min-width: 60px;
+            text-align: center;
+            font-weight: bold;
+            color: #87CEEB;
+            background: rgba(135, 206, 235, 0.1);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 1.1em;
+        }
+
+        .button-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+            margin-top: 25px;
+        }
+
+        button {
+            padding: 15px 25px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        button:before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        button:hover:before {
+            left: 100%;
+        }
+
+        .btn-start {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+        }
+
+        .btn-stop {
+            background: linear-gradient(135deg, #dc3545, #fd7e14);
+            color: white;
+            box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
+        }
+
+        .btn-setup {
+            background: linear-gradient(135deg, #6f42c1, #e83e8c);
+            color: white;
+            box-shadow: 0 4px 15px rgba(111, 66, 193, 0.3);
+        }
+
+        button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+        }
+
+        button:active {
+            transform: translateY(-1px);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .status-section {
+            grid-column: 1 / -1;
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 20px;
+            align-items: start;
+        }
+
+        .status-indicators {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 18px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.3s ease;
+            min-width: 200px;
+        }
+
+        .status-indicator:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: translateX(5px);
+        }
+
+        .status-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .status-active { 
+            background-color: #28a745;
+            box-shadow: 0 0 15px rgba(40, 167, 69, 0.6);
+        }
+        .status-inactive { 
+            background-color: #6c757d;
+            animation: none;
+        }
+        .status-connected { 
+            background-color: #17a2b8;
+            box-shadow: 0 0 15px rgba(23, 162, 184, 0.6);
+        }
+        .status-error { 
+            background-color: #dc3545;
+            box-shadow: 0 0 15px rgba(220, 53, 69, 0.6);
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(1.1); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card:before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #87CEEB, #4682B4);
+            transform: scaleX(0);
+            transition: transform 0.3s ease;
+        }
+
+        .stat-card:hover:before {
+            transform: scaleX(1);
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .stat-card h4 {
+            color: #87CEEB;
+            margin-bottom: 10px;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
+        }
+
+        .stat-card .value {
+            font-size: 1.6em;
+            font-weight: bold;
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+        }
+
+        .log-section {
+            grid-column: 1 / -1;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            padding: 20px;
+            height: 350px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .log-section h3 {
+            margin-bottom: 15px;
+            color: #87CEEB;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .log-container {
+            height: calc(100% - 40px);
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+
+        .log-container::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .log-container::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+
+        .log-container::-webkit-scrollbar-thumb {
+            background: rgba(135, 206, 235, 0.5);
+            border-radius: 3px;
+        }
+
+        .log-entry {
+            margin-bottom: 6px;
+            padding: 10px 15px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            border-left: 4px solid transparent;
+            transition: all 0.2s ease;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .log-success { 
+            background: rgba(40, 167, 69, 0.2); 
+            border-left-color: #28a745;
+            color: #d4edda;
+        }
+
+        .log-error { 
+            background: rgba(220, 53, 69, 0.2); 
+            border-left-color: #dc3545;
+            color: #f8d7da;
+        }
+
+        .log-warning { 
+            background: rgba(255, 193, 7, 0.2); 
+            border-left-color: #ffc107;
+            color: #fff3cd;
+        }
+
+        .log-info { 
+            background: rgba(23, 162, 184, 0.2); 
+            border-left-color: #17a2b8;
+            color: #d1ecf1;
+        }
+
+        .config-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .proxy-status {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .proxy-status h4 {
+            color: #87CEEB;
+            margin-bottom: 10px;
+            font-size: 0.9em;
+        }
+
+        .proxy-url {
+            font-family: 'Courier New', monospace;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #87CEEB;
+            word-break: break-all;
+        }
+
+        @media (max-width: 1200px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .status-section {
+                grid-template-columns: 1fr;
+            }
+            
+            .status-indicators {
+                flex-direction: row;
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .config-row {
+                grid-template-columns: 1fr;
+            }
+            
+            .button-group {
+                grid-template-columns: 1fr;
+            }
+            
+            .status-indicators {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .status-indicator {
+                min-width: unset;
+            }
+        }
+    </style>
 </head>
-
 <body>
-  <div class="cryptotab-header">
-    <div class="header-content">
-      <div class="logo">CryptoTab-Style Scala Miner</div>
-      <div class="mining-toggle">
-        <span>Background Mining</span>
-        <div class="toggle-switch" id="miningToggle">
-          <div class="toggle-slider"></div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="container">
-    <div class="feature-highlight">
-      <h4>🚀 CryptoTab-Style Mining Experience</h4>
-      <p>Mine Scala (XLA) in the background. Panthera algorithm + WebAssembly. Uses a local Stratum proxy.</p>
-    </div>
-
-    <div class="mining-dashboard">
-      <div class="dashboard-card">
-        <div class="card-title">💰 Mining Dashboard</div>
-        <div class="earnings-display">
-          <div class="earnings-amount" id="totalEarnings">0.000000</div>
-          <div class="earnings-label">XLA Earned This Session</div>
-        </div>
+    <div class="container">
+        <h1>⛏️ Scala XLA Miner</h1>
         
-        <div class="mining-status inactive" id="miningStatus">
-          <div class="status-indicator"></div>
-          <span>Mining Inactive</span>
+        <div class="main-grid">
+            <div class="config-section">
+                <h3>⚙️ Mining Configuration</h3>
+                
+                <div class="proxy-status">
+                    <h4>Proxy Connection</h4>
+                    <div class="proxy-url" id="proxyUrl">ws://localhost:8080?pool=scala</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="walletAddress">Wallet Address:</label>
+                    <input type="text" id="walletAddress" placeholder="Sv... (your Scala wallet address)" 
+                           value="SvkoNwsCWqTCwJkeLZr1khbLTWirrJpLBZDrPkw4jY9aXk345Lmg6PY9TJbVhc2Wu5cwc5YLFSucQCSjYdk3syrj2MEMB2uiR">
+                </div>
+                
+                <div class="form-group">
+                    <label for="workerName">Worker Name:</label>
+                    <input type="text" id="workerName" placeholder="DESKTOP-27TI0SG" value="WebMiner-001" />
+                </div>
+                
+                <div class="config-row">
+                    <div class="form-group">
+                        <label for="poolSelect">Mining Pool:</label>
+                        <select id="poolSelect">
+                           <option value="scala">Scala Official - mine.scalaproject.io:3333</option>
+                           <option value="herominers">HeroMiners - scala.herominers.com:10130</option>
+                           <option value="fairpool">FairPool - scala.fairpool.xyz:4455</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="proxyPort">Proxy Port:</label>
+                        <input type="text" id="proxyPort" value="8080" readonly>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="intensity">Mining Intensity: <span id="intensityLabel" class="intensity-value">50%</span></label>
+                    <div class="intensity-container">
+                        <input type="range" id="intensity" min="10" max="100" value="50" 
+                               oninput="updateIntensity(this.value)">
+                        <div class="intensity-value" id="intensityDisplay">50%</div>
+                    </div>
+                </div>
+                
+                <div class="button-group">
+                    <button class="btn-setup" onclick="setupMining()">🔧 Setup</button>
+                    <button class="btn-start" onclick="startMining()" id="startBtn">🚀 Start</button>
+                    <button class="btn-stop" onclick="stopMining()" id="stopBtn">⏹️ Stop</button>
+                </div>
+            </div>
+
+            <div class="status-section">
+                <div class="status-indicators">
+                    <div class="status-indicator">
+                        <div id="minerStatus" class="status-dot status-inactive"></div>
+                        <span>Miner: <span id="minerStatusText">Inactive</span></span>
+                    </div>
+                    <div class="status-indicator">
+                        <div id="poolStatus" class="status-dot status-inactive"></div>
+                        <span>Pool: <span id="poolStatusText">Disconnected</span></span>
+                    </div>
+                    <div class="status-indicator">
+                        <div id="proxyStatus" class="status-dot status-inactive"></div>
+                        <span>Proxy: <span id="proxyStatusText">Not Connected</span></span>
+                    </div>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h4>Hash Rate</h4>
+                        <div class="value" id="hashrate">0 H/s</div>
+                    </div>
+                    <div class="stat-card">
+                        <h4>Total Hashes</h4>
+                        <div class="value" id="totalHashes">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <h4>Shares Found</h4>
+                        <div class="value" id="shares">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <h4>Uptime</h4>
+                        <div class="value" id="uptime">0s</div>
+                    </div>
+                    <div class="stat-card">
+                        <h4>Difficulty</h4>
+                        <div class="value" id="difficulty">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <h4>Block Height</h4>
+                        <div class="value" id="blockHeight">-</div>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <div style="margin:10px 0 4px; color:#9aa6df">Live Hashrate</div>
-        <canvas id="rateChart" width="800" height="160"></canvas>
-
-        <div class="stats-grid">
-          <div class="stat-item">
-            <div class="stat-value" id="hashRate">0</div>
-            <div class="stat-label">Hash/sec</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value" id="totalHashes">0</div>
-            <div class="stat-label">Total Hashes</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value" id="sharesFound">0</div>
-            <div class="stat-label">Shares Found</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value" id="uptime">00:00:00</div>
-            <div class="stat-label">Session Time</div>
-          </div>
+        <div class="log-section">
+            <h3>
+                📋 Mining Log
+                <button onclick="clearLog()" style="background: rgba(220, 53, 69, 0.3); color: white; border: none; padding: 5px 10px; border-radius: 4px; font-size: 12px; cursor: pointer;">Clear</button>
+            </h3>
+            <div class="log-container" id="logContainer"></div>
         </div>
-      </div>
-
-      <div class="dashboard-card">
-        <div class="card-title">⚙️ Mining Configuration</div>
-        <div class="wallet-setup">
-          <div class="input-group">
-            <label for="walletAddress">Scala (XLA) Wallet Address</label>
-            <input id="walletAddress" placeholder="Enter your XLA wallet address (≈95 chars)" />
-          </div>
-          <div class="input-group">
-            <label for="poolSelect">Mining Pool</label>
-            <select id="poolSelect">
-              <option value="">Select a Scala mining pool...</option>
-              <option value="scalaproject_low">mine.scalaproject.io:3333</option>
-              <option value="herominers">xla.herominers.com:1111</option>
-              <option value="fairpool">xla.fairpool.xyz:3333</option>
-              <option value="poolmine">xla.poolmine.tk:4444</option>
-            </select>
-          </div>
-          <button class="btn btn-primary" id="setupBtn">Setup Miner</button>
-        </div>
-
-        <div class="intensity-control">
-          <label>Mining Intensity: <span id="intensityValue">50</span>%</label>
-          <input id="intensitySlider" class="intensity-slider" type="range" min="10" max="100" value="50" />
-          <div class="intensity-labels">
-            <span>Low (10%)</span>
-            <span>Medium (50%)</span>
-            <span>High (100%)</span>
-          </div>
-        </div>
-
-        <div class="stats-grid">
-          <div class="stat-item">
-            <div class="stat-value" id="poolStatus">Disconnected</div>
-            <div class="stat-label">Pool Status</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value" id="difficulty">0</div>
-            <div class="stat-label">Difficulty</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value" id="blockHeight">0</div>
-            <div class="stat-label">Block Height</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value" id="algorithm">Panthera</div>
-            <div class="stat-label">Algorithm</div>
-          </div>
-        </div>
-
-        <div class="controls">
-          <button class="btn" id="startMiningBtn">Start Mining</button>
-          <button class="btn" id="stopMiningBtn">Stop Mining</button>
-        </div>
-      </div>
     </div>
 
-    <div class="dashboard-card">
-      <div class="card-title">📊 Mining Activity Log</div>
-      <div class="log-container" id="miningLog">
-        <div class="log-entry info">Scala XLA WebAssembly Miner initialized</div>
-        <div class="log-entry info">Panthera algorithm support loaded</div>
-        <div class="log-entry info">Ready for CryptoTab-style background mining</div>
-      </div>
-    </div>
+    <script>
+        // Mining state
+        let miningState = {
+            isActive: false,
+            websocket: null,
+            startTime: 0,
+            hashCount: 0,
+            shareCount: 0,
+            difficulty: 0,
+            blockHeight: 0,
+            intensity: 50,
+            uptimeInterval: null
+        };
 
-    <div class="cryptotab-branding">
-      <p>🔗 Powered by WebAssembly • Scala (XLA) Network • Panthera Algorithm</p>
-      <p>Experience seamless background mining like CryptoTab Browser</p>
-    </div>
-  </div>
+        // UI Helper Functions
+        const ui = {
+            setStatus: (active) => {
+                const dot = document.getElementById('minerStatus');
+                const text = document.getElementById('minerStatusText');
+                const startBtn = document.getElementById('startBtn');
+                const stopBtn = document.getElementById('stopBtn');
+                
+                if (active) {
+                    dot.className = 'status-dot status-active';
+                    text.textContent = 'Mining';
+                    startBtn.disabled = true;
+                    stopBtn.disabled = false;
+                } else {
+                    dot.className = 'status-dot status-inactive';
+                    text.textContent = 'Inactive';
+                    startBtn.disabled = false;
+                    stopBtn.disabled = true;
+                }
+            },
 
-  <!-- ✅ CRITICAL: Script Load Order - Must be at bottom of body -->
-  <script src="scala-miner.wasm.js"></script>       <!-- WASM loader --> 
-  <script src="scala-miner.js"></script>            <!-- miner core logic -->
-  <script src="ui.js"></script>                     <!-- UI helpers -->
+            setPoolStatus: (status) => {
+                const dot = document.getElementById('poolStatus');
+                const text = document.getElementById('poolStatusText');
+                text.textContent = status;
+                
+                switch(status.toLowerCase()) {
+                    case 'connected':
+                        dot.className = 'status-dot status-connected';
+                        break;
+                    case 'error':
+                    case 'disconnected':
+                        dot.className = 'status-dot status-error';
+                        break;
+                    case 'connecting...':
+                        dot.className = 'status-dot status-inactive';
+                        break;
+                    default:
+                        dot.className = 'status-dot status-inactive';
+                }
+            },
 
-  <!-- ✅ UI Event Binding -->
-  <script>
-    // Global log function for debugging
-    window.addLog = function(message, type = "info") {
-      const logContainer = document.getElementById('miningLog');
-      if (logContainer) {
-        const entry = document.createElement('div');
-        entry.className = `log-entry ${type}`;
-        entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
-        logContainer.appendChild(entry);
-        logContainer.scrollTop = logContainer.scrollHeight;
-      }
-      console.log(`[LOG-${type.toUpperCase()}] ${message}`);
-    };
+            setProxyStatus: (status) => {
+                const dot = document.getElementById('proxyStatus');
+                const text = document.getElementById('proxyStatusText');
+                text.textContent = status;
+                
+                switch(status.toLowerCase()) {
+                    case 'connected':
+                        dot.className = 'status-dot status-connected';
+                        break;
+                    case 'error':
+                        dot.className = 'status-dot status-error';
+                        break;
+                    case 'connecting...':
+                        dot.className = 'status-dot status-inactive';
+                        break;
+                    default:
+                        dot.className = 'status-dot status-inactive';
+                }
+            },
 
-    // Toggle background mining function
-    window.toggleBackgroundMining = function() {
-      const toggle = document.getElementById('miningToggle');
-      const isActive = toggle.classList.contains('active');
-      
-      if (isActive) {
-        toggle.classList.remove('active');
-        window.stopMining();
-        addLog("Background mining disabled", "info");
-      } else {
-        const wallet = document.getElementById('walletAddress').value.trim();
-        const pool = document.getElementById('poolSelect').value;
+            setHashrate: (rate) => {
+                const element = document.getElementById('hashrate');
+                if (rate >= 1000000) {
+                    element.textContent = (rate / 1000000).toFixed(2) + ' MH/s';
+                } else if (rate >= 1000) {
+                    element.textContent = (rate / 1000).toFixed(2) + ' KH/s';
+                } else {
+                    element.textContent = rate.toFixed(0) + ' H/s';
+                }
+            },
+
+            setTotalHashes: (total) => {
+                document.getElementById('totalHashes').textContent = total.toLocaleString();
+            },
+
+            setShares: (shares) => {
+                document.getElementById('shares').textContent = shares;
+            },
+
+            setUptime: (seconds) => {
+                const hours = Math.floor(seconds / 3600);
+                const minutes = Math.floor((seconds % 3600) / 60);
+                const secs = seconds % 60;
+                document.getElementById('uptime').textContent = 
+                    `${hours}h ${minutes}m ${secs}s`;
+            },
+
+            setDifficulty: (diff) => {
+                document.getElementById('difficulty').textContent = diff.toLocaleString();
+            },
+
+            setBlockHeight: (height) => {
+                document.getElementById('blockHeight').textContent = height.toLocaleString();
+            },
+
+            addLog: (message, type = 'info') => {
+                const container = document.getElementById('logContainer');
+                const entry = document.createElement('div');
+                entry.className = `log-entry log-${type}`;
+                
+                const timestamp = new Date().toLocaleTimeString();
+                entry.textContent = `[${timestamp}] ${message}`;
+                
+                container.appendChild(entry);
+                container.scrollTop = container.scrollHeight;
+                
+                // Keep only last 100 log entries
+                while (container.children.length > 100) {
+                    container.removeChild(container.firstChild);
+                }
+            }
+        };
+
+        // Update intensity
+        function updateIntensity(value) {
+            miningState.intensity = parseInt(value);
+            document.getElementById('intensityLabel').textContent = value + '%';
+            document.getElementById('intensityDisplay').textContent = value + '%';
+            ui.addLog(`Mining intensity set to ${value}%`, 'info');
+        }
+
+        // Setup mining
+        function setupMining() {
+            const walletAddress = document.getElementById('walletAddress').value.trim();
+            const workerName = document.getElementById('workerName').value.trim();
+            const poolSelect = document.getElementById('poolSelect').value;
+            
+            if (!walletAddress) {
+                ui.addLog('Please enter a wallet address', 'error');
+                return;
+            }
+            
+            if (!workerName) {
+                ui.addLog('Please enter a worker name', 'error');
+                return;
+            }
+            
+            ui.addLog('✅ Mining configuration validated', 'success');
+            ui.addLog(`Wallet: ${walletAddress.substring(0, 20)}...`, 'info');
+            ui.addLog(`Worker: ${workerName}`, 'info');
+            ui.addLog(`Pool: ${poolSelect}`, 'info');
+            ui.addLog(`Intensity: ${miningState.intensity}%`, 'info');
+            ui.addLog('Ready to start mining!', 'success');
+        }
+
+        // Start mining - FIXED: Use CryptoNote login with wallet address from form
+function startMining() {
+    if (miningState.isActive) {
+        ui.addLog('Mining already active', 'warning');
+        return;
+    }
+
+    const walletAddress = document.getElementById('walletAddress').value.trim();
+    const workerName = document.getElementById('workerName').value.trim();
+    const poolSelect = document.getElementById('poolSelect').value;
+    const proxyPort = document.getElementById('proxyPort').value;
+
+    if (!walletAddress || !workerName) {
+        ui.addLog('Please setup mining configuration first', 'error');
+        return;
+    }
+
+    ui.addLog('🚀 Starting mining process...', 'info');
+    
+    // Connect to proxy
+    const proxyUrl = `ws://localhost:${proxyPort}?pool=${poolSelect}`;
+    ui.addLog(`Connecting to proxy: ${proxyUrl}`, 'info');
+    ui.setProxyStatus('Connecting...');
+
+    try {
+        miningState.websocket = new WebSocket(proxyUrl);
         
-        if (!wallet || !pool) {
-          addLog("Please configure wallet and pool first", "warning");
-          return;
-        }
+        miningState.websocket.onopen = () => {
+            ui.addLog('📡 Connected to mining proxy', 'success');
+            ui.setProxyStatus('Connected');
+            ui.setPoolStatus('Connecting...');
+            
+            // FIXED: Send CryptoNote login request with wallet address from form
+            const loginRequest = {
+                id: 1,
+                method: "login",
+                params: {
+                    login: `${walletAddress}.${workerName}`,
+                    pass: "web",
+                    agent: "ScalaWebMiner/1.0",
+                    rigid: "web"
+                }
+            };
+            
+            miningState.websocket.send(JSON.stringify(loginRequest));
+            ui.addLog('Sending CryptoNote login request...', 'info');
+            ui.addLog(`Login: ${walletAddress.substring(0, 20)}...${walletAddress.substring(-10)}.${workerName}`, 'info');
+        };
         
-        toggle.classList.add('active');
-        window.setupMining();
-        addLog("Background mining enabled", "success");
-      }
-    };
+        miningState.websocket.onmessage = (event) => {
+            handleMiningMessage(JSON.parse(event.data));
+        };
+        
+        miningState.websocket.onclose = () => {
+            ui.addLog('🔌 Disconnected from proxy', 'warning');
+            ui.setProxyStatus('Disconnected');
+            ui.setPoolStatus('Disconnected');
+            if (miningState.isActive) {
+                stopMining();
+            }
+        };
+        
+        miningState.websocket.onerror = (error) => {
+            ui.addLog(`❌ WebSocket error: ${error.message || 'Connection failed'}`, 'error');
+            ui.setProxyStatus('Error');
+        };
+        
+    } catch (error) {
+        ui.addLog(`❌ Failed to connect to proxy: ${error.message}`, 'error');
+        ui.setProxyStatus('Error');
+        return;
+    }
 
-    document.addEventListener('DOMContentLoaded', function() {
-      // Initialize UI object for miner callbacks
-      window.__ui = {
-        addLog: window.addLog,
-        setStatus: function(active) {
-          const status = document.getElementById('miningStatus');
-          const toggle = document.getElementById('miningToggle');
-          if (active) {
-            status.classList.add('active');
-            status.classList.remove('inactive');
-            status.querySelector('span').textContent = 'Mining Active';
-            toggle.classList.add('active');
-          } else {
-            status.classList.remove('active');
-            status.classList.add('inactive');
-            status.querySelector('span').textContent = 'Mining Inactive';
-            toggle.classList.remove('active');
-          }
-        },
-        setPoolStatus: function(status) {
-          const el = document.getElementById('poolStatus');
-          if (el) el.textContent = status;
-        },
-        setHashrate: function(rate) {
-          const el = document.getElementById('hashRate');
-          if (el) el.textContent = rate.toLocaleString();
-        },
-        setTotalHashes: function(total) {
-          const el = document.getElementById('totalHashes');
-          if (el) el.textContent = total.toLocaleString();
-        },
-        setShares: function(shares) {
-          const el = document.getElementById('sharesFound');
-          if (el) el.textContent = shares;
-        },
-        setUptime: function(seconds) {
-          const el = document.getElementById('uptime');
-          if (el) {
-            const h = Math.floor(seconds / 3600);
-            const m = Math.floor((seconds % 3600) / 60);
-            const s = seconds % 60;
-            el.textContent = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
-          }
-        },
-        setIntensityLabel: function(value) {
-          const el = document.getElementById('intensityValue');
-          if (el) el.textContent = value;
-        }
-      };
+    miningState.isActive = true;
+    miningState.startTime = Date.now();
+    miningState.hashCount = 0;
+    miningState.shareCount = 0;
+    
+    ui.setStatus(true);
+    
+    // Start uptime counter
+    miningState.uptimeInterval = setInterval(() => {
+        const uptime = Math.floor((Date.now() - miningState.startTime) / 1000);
+        ui.setUptime(uptime);
+        
+        // Simulate some hash rate (replace with actual mining logic)
+        const baseHashRate = miningState.intensity * 100;
+        const variance = Math.random() * 50 - 25; // ±25 variance
+        const currentHashRate = Math.max(0, baseHashRate + variance);
+        
+        miningState.hashCount += currentHashRate;
+        ui.setHashrate(currentHashRate);
+        ui.setTotalHashes(miningState.hashCount);
+    }, 1000);
+}
 
-      // Setup button
-      document.getElementById('setupBtn').onclick = function() {
-        try {
-          const wallet = document.getElementById('walletAddress').value.trim();
-          const pool = document.getElementById('poolSelect').value;
-          
-          if (!wallet) {
-            addLog("⚠ Please enter a wallet address", "error");
-            return;
-          }
-          if (!pool) {
-            addLog("⚠ Please select a mining pool", "error");
-            return;
-          }
-          
-          window.setupMining();
-        } catch (e) {
-          console.error('Error setting up miner:', e);
-          addLog("Error setting up miner: " + e.message, "error");
-        }
-      };
+        // Stop mining
+        function stopMining() {
+            if (!miningState.isActive) {
+                ui.addLog('Mining not active', 'warning');
+                return;
+            }
 
-      // Mining toggle
-      document.getElementById('miningToggle').onclick = function() {
-        try {
-          window.toggleBackgroundMining();
-        } catch (e) {
-          console.error('Error toggling miner:', e);
-          addLog("Error toggling miner: " + e.message, "error");
-        }
-      };
+            ui.addLog('⏹️ Stopping mining process...', 'info');
 
-      // Start mining button
-      document.getElementById('startMiningBtn').onclick = function() {
-        try {
-          window.setupMining();
-        } catch (e) {
-          console.error('Error starting miner:', e);
-          addLog("Error starting miner: " + e.message, "error");
-        }
-      };
+            miningState.isActive = false;
+            
+            if (miningState.websocket) {
+                miningState.websocket.close();
+                miningState.websocket = null;
+            }
+            
+            if (miningState.uptimeInterval) {
+                clearInterval(miningState.uptimeInterval);
+                miningState.uptimeInterval = null;
+            }
 
-      // Stop mining button
-      document.getElementById('stopMiningBtn').onclick = function() {
-        try {
-          window.stopMining();
-        } catch (e) {
-          console.error('Error stopping miner:', e);
-          addLog("Error stopping miner: " + e.message, "error");
+            ui.setStatus(false);
+            ui.setProxyStatus('Disconnected');
+            ui.setPoolStatus('Disconnected');
+            ui.setHashrate(0);
+            
+            const totalTime = Math.floor((Date.now() - miningState.startTime) / 1000);
+            ui.addLog(`Mining stopped. Total time: ${totalTime}s, Hashes: ${miningState.hashCount.toLocaleString()}, Shares: ${miningState.shareCount}`, 'info');
         }
-      };
 
-      // Intensity slider
-      document.getElementById('intensitySlider').oninput = function() {
-        try {
-          document.getElementById('intensityValue').textContent = this.value;
-        } catch (e) {
-          console.error('Error updating intensity display:', e);
+        // Handle mining messages from proxy/pool
+        function handleMiningMessage(message) {
+            try {
+                ui.addLog(`📨 Received: ${message.method || message.type || 'response'}`, 'info');
+                
+                if (message.type === 'proxy_status') {
+                    handleProxyStatus(message);
+                } else if (message.method) {
+                    handlePoolMethod(message);
+                } else if (message.id !== undefined) {
+                    handlePoolResponse(message);
+                }
+                
+            } catch (error) {
+                ui.addLog(`❌ Error handling message: ${error.message}`, 'error');
+            }
         }
-      };
 
-      document.getElementById('intensitySlider').onchange = function() {
-        try {
-          window.updateIntensity(this.value);
-        } catch (e) {
-          console.error('Error setting intensity:', e);
-          addLog("Error setting intensity: " + e.message, "error");
+        // Handle proxy status messages
+        function handleProxyStatus(message) {
+            switch (message.status) {
+                case 'connected':
+                    ui.setPoolStatus('Connected');
+                    ui.addLog(`✅ Connected to pool: ${message.pool}`, 'success');
+                    break;
+                case 'disconnected':
+                    ui.setPoolStatus('Disconnected');
+                    ui.addLog(`❌ Pool disconnected: ${message.reason || 'Unknown'}`, 'error');
+                    break;
+                case 'error':
+                    ui.setPoolStatus('Error');
+                    ui.addLog(`❌ Pool error: ${message.error}`, 'error');
+                    break;
+            }
         }
-      };
-    });
-  </script>
+
+        // Handle pool method calls (notifications)
+        function handlePoolMethod(message) {
+            switch (message.method) {
+                case 'mining.notify':
+                    handleMiningNotify(message);
+                    break;
+                case 'mining.set_difficulty':
+                    handleSetDifficulty(message);
+                    break;
+                case 'mining.set_extranonce':
+                    ui.addLog('🔄 Extranonce updated', 'info');
+                    break;
+                default:
+                    ui.addLog(`📨 Unknown method: ${message.method}`, 'warning');
+            }
+        }
+
+        // Handle pool responses
+        function handlePoolResponse(message) {
+            if (message.error) {
+                ui.addLog(`❌ Pool error: ${JSON.stringify(message.error)}`, 'error');
+                return;
+            }
+
+            switch (message.id) {
+                case 1: // subscription response
+                    if (message.result) {
+                        ui.addLog('✅ Successfully subscribed to pool', 'success');
+                        ui.setPoolStatus('Connected');
+                        
+                        // Send authorization with actual wallet address
+                        const walletAddress = document.getElementById('walletAddress').value.trim();
+                        const workerName = document.getElementById('workerName').value.trim();
+                        
+                        const authorizeRequest = {
+                            id: 2,
+                            method: 'mining.authorize',
+                            params: [walletAddress, workerName]  // FIXED: Use actual wallet address
+                        };
+                        
+                        miningState.websocket.send(JSON.stringify(authorizeRequest));
+                        ui.addLog('Sending authorization...', 'info');
+                    }
+                    break;
+                    
+                case 2: // authorization response
+                    if (message.result === true) {
+                        ui.addLog('✅ Successfully authorized with pool', 'success');
+                    } else {
+                        ui.addLog('❌ Authorization failed', 'error');
+                    }
+                    break;
+                    
+                default:
+                    if (message.result === true) {
+                        // Share submission accepted
+                        miningState.shareCount++;
+                        ui.setShares(miningState.shareCount);
+                        ui.addLog('💎 Share accepted!', 'success');
+                    } else if (message.result === false) {
+                        ui.addLog('❌ Share rejected', 'error');
+                    }
+            }
+        }
+
+        // Handle mining.notify (new work)
+        function handleMiningNotify(message) {
+            if (!message.params || message.params.length < 7) {
+                ui.addLog('❌ Invalid mining.notify parameters', 'error');
+                return;
+            }
+
+            const [jobId, prevHash, coinbase1, coinbase2, merkleBranches, version, bits, timestamp] = message.params;
+            
+            ui.addLog(`🎯 New job: ${jobId}`, 'success');
+            ui.addLog(`   Block: ${prevHash.substring(0, 16)}...`, 'info');
+            ui.addLog(`   Difficulty bits: ${bits}`, 'info');
+            
+            // Here you would implement the actual mining logic
+            // For now, we'll simulate finding shares periodically
+            simulateShare(jobId);
+        }
+
+        // Handle difficulty change
+        function handleSetDifficulty(message) {
+            if (message.params && message.params.length > 0) {
+                const difficulty = message.params[0];
+                miningState.difficulty = difficulty;
+                ui.setDifficulty(difficulty);
+                ui.addLog(`⚡ Difficulty set to: ${difficulty}`, 'info');
+            }
+        }
+
+        // Simulate share finding (replace with actual mining)
+        function simulateShare(jobId) {
+            // Simulate finding a share based on intensity
+            const shareChance = miningState.intensity / 100 * 0.1; // 10% max chance per minute
+            const timeToShare = Math.random() * (60000 / shareChance); // Random time based on chance
+            
+            setTimeout(() => {
+                if (!miningState.isActive || !miningState.websocket) return;
+                
+                // Get current wallet address for submission
+                const walletAddress = document.getElementById('walletAddress').value.trim();
+                
+                // Simulate share submission with actual wallet address
+                const shareRequest = {
+                    id: Date.now(), // Unique ID
+                    method: 'mining.submit',
+                    params: [
+                        walletAddress,  // FIXED: Use actual wallet address
+                        jobId,
+                        Math.random().toString(16).substring(2, 10), // Random extranonce2
+                        Math.floor(Date.now() / 1000).toString(16), // Current time as ntime
+                        Math.random().toString(16).substring(2, 18) // Random nonce
+                    ]
+                };
+                
+                miningState.websocket.send(JSON.stringify(shareRequest));
+                ui.addLog(`📤 Submitting share for job ${jobId}...`, 'info');
+                
+                // Schedule next share
+                if (miningState.isActive) {
+                    simulateShare(jobId);
+                }
+            }, timeToShare);
+        }
+
+        // Clear log
+        function clearLog() {
+            document.getElementById('logContainer').innerHTML = '';
+            ui.addLog('🧹 Log cleared', 'info');
+        }
+
+        // Update proxy URL when pool changes
+        document.getElementById('poolSelect').addEventListener('change', function() {
+            const proxyUrl = `ws://localhost:8080?pool=${this.value}`;
+            document.getElementById('proxyUrl').textContent = proxyUrl;
+        });
+
+        // Initialize UI
+        document.addEventListener('DOMContentLoaded', function() {
+            ui.addLog('🎉 Scala Web Miner initialized', 'success');
+            ui.addLog('ℹ️ Configure your settings and click Setup Mining', 'info');
+            ui.addLog('⚠️ Make sure the mining proxy is running on port 8080', 'warning');
+            
+            // Set initial states
+            ui.setStatus(false);
+            ui.setProxyStatus('Not Connected');
+            ui.setPoolStatus('Disconnected');
+            
+            // Update intensity display
+            updateIntensity(50);
+        });
+
+        // Handle page unload
+        window.addEventListener('beforeunload', function() {
+            if (miningState.isActive) {
+                stopMining();
+            }
+        });
+    </script>
 </body>
 </html>
