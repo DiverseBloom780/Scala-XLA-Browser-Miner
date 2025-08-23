@@ -107,6 +107,7 @@ This implementation uses WebAssembly for high-performance mining with the **Pant
 * `scala-miner.wasm` → Compiled Panthera mining core
 * `scala-miner.html` → Browser interface
 * `proxy.js` → WebSocket ↔ Stratum bridge
+* 'panthera-hash.wasm and panthera-hash.js for hashing
 
 ### How It Works
 
